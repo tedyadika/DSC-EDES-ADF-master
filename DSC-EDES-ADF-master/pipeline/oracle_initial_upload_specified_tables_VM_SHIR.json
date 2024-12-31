@@ -1,0 +1,126 @@
+{
+	"name": "oracle_initial_upload_specified_tables_VM_SHIR",
+	"properties": {
+		"description": "This pipeline does not delete old data - it is meant truly only for the very first load of a warehouse",
+		"activities": [
+			{
+				"name": "check pipelines - stop VM",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Run Initial Upload Specified Tables",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "stop_pipeline_VM_IR",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"ThisRunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"IR_alias": {
+							"value": "@pipeline().parameters.IR_alias",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "start_pipeline_VM_IR",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "start_pipeline_VM_IR",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"IR_alias": {
+							"value": "@pipeline().parameters.IR_alias",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Run Initial Upload Specified Tables",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "start_pipeline_VM_IR",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "execute_pipeline",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"pipelineName": {
+							"value": "oracle_initial_upload_specified_tables_@{pipeline().parameters.IR_alias}",
+							"type": "Expression"
+						},
+						"pipelineParametersJson": {
+							"value": "{ \"instance_name\":  \"@{pipeline().parameters.instance_name}\",\n  \"system_name\":  \"@{pipeline().parameters.system_name}\",\n  \"tables\":  \"@{pipeline().parameters.tables}\"\n  }",
+							"type": "Expression"
+						},
+						"checkStatusWaitTime": 30
+					}
+				}
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "nlber_6"
+			},
+			"IR_alias": {
+				"type": "string",
+				"defaultValue": "VM_SHIR_00"
+			},
+			"system_name": {
+				"type": "string",
+				"defaultValue": "blueyonder"
+			},
+			"tables": {
+				"type": "string",
+				"defaultValue": "'BLDG_MST','CLIENT','CTRY_MST','PRT_SER_TYP','RPLCFG','SER_NUM_TYP','UC_PRTHZMMST','WH'"
+			}
+		},
+		"variables": {
+			"test": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_oracle/main_dynamic_SHIR"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-02-21T08:48:29Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

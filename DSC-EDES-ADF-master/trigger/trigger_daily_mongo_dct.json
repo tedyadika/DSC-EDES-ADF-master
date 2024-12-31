@@ -1,0 +1,39 @@
+{
+	"name": "trigger_daily_mongo_dct",
+	"properties": {
+		"annotations": [],
+		"runtimeState": "Stopped",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "mongo_upload_VM_SHIR",
+					"type": "PipelineReference"
+				},
+				"parameters": {
+					"instance_name": "dct",
+					"system": "dct_emea",
+					"load": "full",
+					"trigger_synapse": true,
+					"IR_alias": "VM_SHIR_00"
+				}
+			}
+		],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Day",
+				"interval": 1,
+				"startTime": "2024-09-05T12:21:00Z",
+				"timeZone": "UTC",
+				"schedule": {
+					"minutes": [
+						30
+					],
+					"hours": [
+						1
+					]
+				}
+			}
+		}
+	}
+}

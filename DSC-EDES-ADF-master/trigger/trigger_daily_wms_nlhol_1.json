@@ -1,0 +1,37 @@
+{
+	"name": "trigger_daily_wms_nlhol_1",
+	"properties": {
+		"annotations": [],
+		"runtimeState": "Stopped",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "oracle_daily_upload_VM_SHIR",
+					"type": "PipelineReference"
+				},
+				"parameters": {
+					"instance_name": "nlhol_1",
+					"system": "blueyonder",
+					"IR_alias": "VM_SHIR_00"
+				}
+			}
+		],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Day",
+				"interval": 1,
+				"startTime": "2024-05-28T12:00:00Z",
+				"timeZone": "UTC",
+				"schedule": {
+					"minutes": [
+						15
+					],
+					"hours": [
+						23
+					]
+				}
+			}
+		}
+	}
+}

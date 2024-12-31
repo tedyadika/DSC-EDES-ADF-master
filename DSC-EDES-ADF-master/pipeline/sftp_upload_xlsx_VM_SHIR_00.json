@@ -1,0 +1,471 @@
+{
+	"name": "sftp_upload_xlsx_VM_SHIR_00",
+	"properties": {
+		"activities": [
+			{
+				"name": "Get instance info",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Get stage source ID",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT * FROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_SFTP_CONNECTION_INFO WHERE [STAGE_SOURCE_ID]='@{activity('Get stage source ID').output.firstRow.STAGE_SOURCE_ID}' AND MODE='@{pipeline().parameters.mode}'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "unused"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Copy each table from mode",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Get instance info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Get table names",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Get table names').output.value",
+						"type": "Expression"
+					},
+					"batchCount": 25,
+					"activities": [
+						{
+							"name": "Copy unpartitioned data from prod",
+							"type": "Copy",
+							"dependsOn": [
+								{
+									"activity": "Delete from stage",
+									"dependencyConditions": [
+										"Completed"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [
+								{
+									"name": "Table_name",
+									"value": "@{item().SOURCE_OBJECT_NAME}"
+								},
+								{
+									"name": "Source",
+									"value": "@{concat(activity('Get instance info').output.firstRow.FOLDER_PATH, '/', item().SOURCE_OBJECT_LOCATION, '/*')}/@{'<filepath>'}"
+								},
+								{
+									"name": "Destination",
+									"value": "@{pipeline().globalParameters.environment_container}/stage/@{concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN)}/@{pipeline().parameters.instance_name}/@{activity('Get instance info').output.firstRow.MODE}/@{item().SOURCE_OBJECT_NAME}/current/"
+								},
+								{
+									"name": "QUERY",
+									"value": "@{json(item().QUERY)}"
+								}
+							],
+							"typeProperties": {
+								"source": {
+									"type": "ExcelSource",
+									"additionalColumns": [
+										{
+											"name": "DW_SOURCE_FILE",
+											"value": "$$FILENAME"
+										}
+									],
+									"storeSettings": {
+										"type": "SftpReadSettings",
+										"recursive": true,
+										"wildcardFolderPath": {
+											"value": "@{activity('Get instance info').output.firstRow.FOLDER_PATH}/@{item().SOURCE_OBJECT_LOCATION}",
+											"type": "Expression"
+										},
+										"wildcardFileName": {
+											"value": "@{json(item().QUERY).FILE_NAME}",
+											"type": "Expression"
+										},
+										"enablePartitionDiscovery": false,
+										"disableChunking": false
+									}
+								},
+								"sink": {
+									"type": "DelimitedTextSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings",
+										"copyBehavior": "PreserveHierarchy"
+									},
+									"formatSettings": {
+										"type": "DelimitedTextWriteSettings",
+										"quoteAllText": true,
+										"fileExtension": {
+											"value": ".@{item().SAVE_FORMAT}",
+											"type": "Expression"
+										}
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "sftp_xlsx_source_VM_SHIR_00",
+									"type": "DatasetReference",
+									"parameters": {
+										"folder_path": "UNUSED",
+										"file_name": "UNUSED",
+										"sheet_name": {
+											"value": "@{json(item().QUERY).SHEET_NAME}",
+											"type": "Expression"
+										},
+										"HOST": {
+											"value": "@activity('Get instance info').output.firstRow.HOST",
+											"type": "Expression"
+										},
+										"USERNAME": {
+											"value": "@activity('Get instance info').output.firstRow.USER_NAME",
+											"type": "Expression"
+										},
+										"PASSWORD": {
+											"value": "@activity('Get instance info').output.firstRow.PASSWORD",
+											"type": "Expression"
+										},
+										"PORT": {
+											"value": "@activity('Get instance info').output.firstRow.PORT",
+											"type": "Expression"
+										},
+										"cell_range": {
+											"value": "@{json(item().QUERY).CELL_RANGE}",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "gen_csv_sink",
+									"type": "DatasetReference",
+									"parameters": {
+										"FolderPath": {
+											"value": "stage/@{toLower(concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN))}/@{pipeline().parameters.instance_name}/@{activity('Get instance info').output.firstRow.MODE}/@{item().SOURCE_OBJECT_NAME}/current",
+											"type": "Expression"
+										},
+										"Container": {
+											"value": "@pipeline().globalParameters.environment_container",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						},
+						{
+							"name": "Delete from stage",
+							"type": "Delete",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataset": {
+									"referenceName": "gen_csv_sink",
+									"type": "DatasetReference",
+									"parameters": {
+										"FolderPath": {
+											"value": "stage/@{toLower(concat(     activity('Get stage source ID').output.firstRow.SYSTEM_NAME,     '_',     activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN))}/@{pipeline().parameters.instance_name}/@{activity('Get instance info').output.firstRow.MODE}/@{item().SOURCE_OBJECT_NAME}/current",
+											"type": "Expression"
+										},
+										"Container": {
+											"value": "@pipeline().globalParameters.environment_container",
+											"type": "Expression"
+										}
+									}
+								},
+								"enableLogging": false,
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"wildcardFileName": "*",
+									"enablePartitionDiscovery": false
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Get table names",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Get stage source ID",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT *\nFROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_TABLES\nWHERE [STAGE_SOURCE_ID]='@{activity('Get stage source ID').output.firstRow.STAGE_SOURCE_ID}'\nAND ACTIVE_FLAG = 1\nAND @{if(\n    equals(pipeline().parameters.mode, 'ARCH'), \n    'LOAD_ARCHIVE_FLAG = 1',\n    '1=1')}\nAND @{if(\n    equals(pipeline().parameters.frequency_name, 'daily_standard'), \n    '1 = 1',concat('FREQUENCY_NAME = ''', pipeline().parameters.frequency_name,''''))}\nORDER BY LOAD_ORDER",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "ADF_WMS_CONFIG_INSTANCES"
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "Get stage source ID",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT STAGE_SOURCE_ID,\n\tSYSTEM_NAME,\n\tLOWER(SYSTEM_DOMAIN) SYSTEM_DOMAIN\n FROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_SOURCES WHERE [SOURCE_NAME]='@{pipeline().parameters.instance_name}' AND SYSTEM_NAME='@{pipeline().parameters.system}'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "Unused"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Delete SFTP each table from mode",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "If Clean Up SFTP",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@variables('DELETE_TABLES')",
+						"type": "Expression"
+					},
+					"batchCount": 25,
+					"activities": [
+						{
+							"name": "Delete older than xyz days from sftp",
+							"type": "Delete",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataset": {
+									"referenceName": "sftp_binary_source_VM_SHIR_00",
+									"type": "DatasetReference",
+									"parameters": {
+										"folder_path": {
+											"value": "@{activity('Get instance info').output.firstRow.FOLDER_PATH}/@{item().SOURCE_OBJECT_LOCATION}",
+											"type": "Expression"
+										},
+										"HOST": "@activity('Get instance info').output.firstRow.HOST",
+										"USERNAME": {
+											"value": "@activity('Get instance info').output.firstRow.USER_NAME",
+											"type": "Expression"
+										},
+										"PASSWORD": {
+											"value": "@activity('Get instance info').output.firstRow.PASSWORD",
+											"type": "Expression"
+										},
+										"PORT": {
+											"value": "@activity('Get instance info').output.firstRow.PORT",
+											"type": "Expression"
+										},
+										"file_name": "UNUSED"
+									}
+								},
+								"enableLogging": false,
+								"storeSettings": {
+									"type": "SftpReadSettings",
+									"recursive": true,
+									"modifiedDatetimeEnd": {
+										"value": "@addDays(utcNow(), int(pipeline().parameters.clean_up_sftp_days_to_keep))",
+										"type": "Expression"
+									},
+									"wildcardFileName": {
+										"value": "@{json(item().QUERY).FILE_NAME}",
+										"type": "Expression"
+									},
+									"enablePartitionDiscovery": false,
+									"disableChunking": false
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "If Clean Up SFTP",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Copy each table from mode",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(pipeline().parameters.clean_up_sftp, 'YES')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Set DELETE TABLES",
+							"type": "SetVariable",
+							"dependsOn": [],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "DELETE_TABLES",
+								"value": [
+									"@activity('Get table names').output.value"
+								]
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "czchegy"
+			},
+			"system": {
+				"type": "string",
+				"defaultValue": "goodyear"
+			},
+			"mode": {
+				"type": "string",
+				"defaultValue": "PROD"
+			},
+			"frequency_name": {
+				"type": "string",
+				"defaultValue": "daily_standard"
+			},
+			"clean_up_sftp": {
+				"type": "string",
+				"defaultValue": "NO"
+			},
+			"clean_up_sftp_days_to_keep": {
+				"type": "string",
+				"defaultValue": "-1"
+			}
+		},
+		"variables": {
+			"DELETE_TABLES": {
+				"type": "Array",
+				"defaultValue": []
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_sftp/deploy_multi_SHIR"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-10-30T11:19:21Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

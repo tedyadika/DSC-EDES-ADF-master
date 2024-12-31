@@ -1,0 +1,324 @@
+{
+	"name": "check_PK_synapse_SHARED_SHIR",
+	"properties": {
+		"description": "checks if azure BK is exactly identical to JDA PK. No PK means an automatic pass,  'oracle PK' property will return  ORACLE_HAS_NO_PK",
+		"activities": [
+			{
+				"name": "Check PK correct in config",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "get table info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Get PROD instance info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('get table info').output.value",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Get Oracle PK",
+							"type": "Lookup",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [
+								{
+									"name": "table",
+									"value": "@item().SOURCE_OBJECT_NAME"
+								}
+							],
+							"typeProperties": {
+								"source": {
+									"type": "OracleSource",
+									"oracleReaderQuery": {
+										"value": "SELECT LISTAGG(cols.column_name, ', ') as ORACLE_PK\nFROM all_constraints cons, all_cons_columns cols\nWHERE cols.table_name = '@{item().SOURCE_OBJECT_NAME}'\nAND cons.constraint_type = 'P'\nAND cons.constraint_name = cols.constraint_name\nAND cons.owner = cols.owner",
+										"type": "Expression"
+									},
+									"partitionOption": "None",
+									"convertDecimalToInteger": false,
+									"queryTimeout": "02:00:00"
+								},
+								"dataset": {
+									"referenceName": "gen_oracle_source_SHARED_SHIR",
+									"type": "DatasetReference",
+									"parameters": {
+										"SchemaName": "unused",
+										"TableName": "unused",
+										"HOST": {
+											"value": "@activity('Get PROD instance info').output.firstRow.HOST",
+											"type": "Expression"
+										},
+										"PORT": {
+											"value": "@activity('Get PROD instance info').output.firstRow.PORT",
+											"type": "Expression"
+										},
+										"SID": {
+											"value": "@activity('Get PROD instance info').output.firstRow.SID",
+											"type": "Expression"
+										},
+										"USER_NAME": {
+											"value": "@activity('Get PROD instance info').output.firstRow.USER_NAME",
+											"type": "Expression"
+										},
+										"PASSWORD": {
+											"value": "@activity('Get PROD instance info').output.firstRow.PASSWORD",
+											"type": "Expression"
+										}
+									}
+								},
+								"firstRowOnly": true
+							}
+						},
+						{
+							"name": "check if azure pk contains oracle pk",
+							"type": "IfCondition",
+							"dependsOn": [
+								{
+									"activity": "Get Oracle PK",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [
+								{
+									"name": "oracle PK",
+									"value": "@coalesce(activity('Get Oracle PK').output.firstRow.ORACLE_PK, 'ORACLE_HAS_NO_PK')"
+								},
+								{
+									"name": "azure BK",
+									"value": "@item().BUSINESS_KEY_LIST"
+								},
+								{
+									"name": "table",
+									"value": "@item().SOURCE_OBJECT_NAME"
+								},
+								{
+									"name": "azure BK unsplit array",
+									"value": "@substring(coalesce(item().BUSINESS_KEY_LIST, '  AZURE_HAS_NO_PK  '), 2,add(length(coalesce(item().BUSINESS_KEY_LIST, '  AZURE_HAS_NO_PK  ')), -4))"
+								}
+							],
+							"typeProperties": {
+								"expression": {
+									"value": "@or(\n    equals(\n        intersection(\n            split(coalesce(activity('Get Oracle PK').output.firstRow.ORACLE_PK, 'ORACLE_HAS_NO_PK'), ', '), \n            split(substring(coalesce(item().BUSINESS_KEY_LIST, '  AZURE_HAS_NO_PK  '), 2,add(length(coalesce(item().BUSINESS_KEY_LIST, '  AZURE_HAS_NO_PK  ')), -4)), '\",\"')), \n        union(\n            split(coalesce(activity('Get Oracle PK').output.firstRow.ORACLE_PK, 'ORACLE_HAS_NO_PK'), ', '), \n            split(substring(coalesce(item().BUSINESS_KEY_LIST, '  AZURE_HAS_NO_PK  '), 2,add(length(coalesce(item().BUSINESS_KEY_LIST, '  AZURE_HAS_NO_PK  ')), -4)), '\",\"'))\n        ), \n    equals(coalesce(activity('Get Oracle PK').output.firstRow.ORACLE_PK, 'ORACLE_HAS_NO_PK'), 'ORACLE_HAS_NO_PK')\n    )",
+									"type": "Expression"
+								},
+								"ifFalseActivities": [
+									{
+										"name": "Fail if oracle has more pks than synapse",
+										"type": "Fail",
+										"dependsOn": [],
+										"userProperties": [],
+										"typeProperties": {
+											"message": {
+												"value": "@concat('Oracle has PKs that arent in Azure for table ', item().SOURCE_OBJECT_NAME)",
+												"type": "Expression"
+											},
+											"errorCode": "500"
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "get instance info",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "select \nINSTANCE_ID\nfrom @{pipeline().globalParameters.environment_db}.[TBL_BRONZE_INSTANCES] \nwhere 1=1\nAND INSTANCE_NAME = '@{pipeline().parameters.instance_name}';",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": {
+								"value": "@pipeline().globalParameters.environment_db",
+								"type": "Expression"
+							},
+							"table_name": "[TBL_BRONZE_INSTANCES]"
+						}
+					}
+				}
+			},
+			{
+				"name": "get table info",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "get instance info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "select SOURCE_OBJECT_NAME,BUSINESS_KEY_LIST\nFROM @{pipeline().globalParameters.environment_db}.[TBL_BRONZE_TABLES]\nWHERE 1=1\nAND INSTANCE_ID = @{activity('get instance info').output.firstRow.INSTANCE_ID}\nORDER BY SOURCE_OBJECT_NAME;",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": {
+								"value": "@pipeline().globalParameters.environment_db",
+								"type": "Expression"
+							},
+							"table_name": "TBL_BRONZE_TABLES"
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "get source info",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "select \nSTAGE_SOURCE_ID\n, SOURCE_NAME\n, SYSTEM_NAME\n, SYSTEM_DOMAIN\n, CONNECTOR\n, ARCHIVE_FLAG\nfrom @{pipeline().globalParameters.environment_db}.[TBL_STAGE_SOURCES] \nwhere 1=1\nAND ACTIVE_FLAG = 1 \nAND SOURCE_NAME = '@{pipeline().parameters.instance_name}';",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "@pipeline().globalParameters.environment_db",
+							"table_name": "[TBL_BRONZE_INSTANCES]"
+						}
+					}
+				}
+			},
+			{
+				"name": "Get PROD instance info",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "get source info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT * \nFROM \n@{pipeline().globalParameters.environment_db}.TBL_STAGE_ORACLE_CONNECTION_INFO \nWHERE 1=1\nAND [STAGE_SOURCE_ID] = '@{activity('get source info').output.firstRow.STAGE_SOURCE_ID}'\nAND [MODE]='PROD';",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": {
+								"value": "@pipeline().globalParameters.environment_db",
+								"type": "Expression"
+							},
+							"table_name": "TBL_STAGE_ORACLE_CONNECTION_INFO"
+						}
+					},
+					"firstRowOnly": true
+				}
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "czpoh_4"
+			}
+		},
+		"variables": {
+			"OraclePKs": {
+				"type": "Array",
+				"defaultValue": [
+					""
+				]
+			},
+			"AzurePKs": {
+				"type": "Array",
+				"defaultValue": [
+					""
+				]
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_oracle/hardcoded_shared_SHIR/data_validation"
+		},
+		"annotations": [],
+		"lastPublishTime": "2023-10-05T09:02:44Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

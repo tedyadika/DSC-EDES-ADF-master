@@ -1,0 +1,70 @@
+{
+	"name": "data_lake_xlsx_source",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "gen_target",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"folder_path": {
+				"type": "string",
+				"defaultValue": "stage/goodyear_wms/czchegy/PROD_BCK/in/DataLake/SourceGYDailyReports/DailyInbound"
+			},
+			"file_name": {
+				"type": "string",
+				"defaultValue": "2024-11-27T030116 Report view of Daily Inbound Report.xlsx"
+			},
+			"sheet_name": {
+				"type": "string",
+				"defaultValue": "IB Details"
+			},
+			"cell_range": {
+				"type": "string",
+				"defaultValue": "A3"
+			},
+			"environment_container": {
+				"type": "string",
+				"defaultValue": "development"
+			},
+			"first_row_as_header": {
+				"type": "bool",
+				"defaultValue": true
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_data_lake/autoresolve_IR"
+		},
+		"annotations": [],
+		"type": "Excel",
+		"typeProperties": {
+			"sheetName": {
+				"value": "@dataset().sheet_name",
+				"type": "Expression"
+			},
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"fileName": {
+					"value": "@dataset().file_name",
+					"type": "Expression"
+				},
+				"folderPath": {
+					"value": "@dataset().folder_path",
+					"type": "Expression"
+				},
+				"fileSystem": {
+					"value": "@dataset().environment_container",
+					"type": "Expression"
+				}
+			},
+			"range": {
+				"value": "@dataset().cell_range",
+				"type": "Expression"
+			},
+			"firstRowAsHeader": {
+				"value": "@dataset().first_row_as_header",
+				"type": "Expression"
+			}
+		},
+		"schema": []
+	}
+}

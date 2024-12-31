@@ -1,0 +1,35 @@
+{
+	"name": "trigger_daily_wms_trins_2",
+	"properties": {
+		"annotations": [],
+		"runtimeState": "Stopped",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "oracle_daily_upload_VM_SHIR",
+					"type": "PipelineReference"
+				},
+				"parameters": {
+					"instance_name": "trins_2"
+				}
+			}
+		],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Day",
+				"interval": 1,
+				"startTime": "2024-06-19T15:08:00Z",
+				"timeZone": "UTC",
+				"schedule": {
+					"minutes": [
+						55
+					],
+					"hours": [
+						23
+					]
+				}
+			}
+		}
+	}
+}

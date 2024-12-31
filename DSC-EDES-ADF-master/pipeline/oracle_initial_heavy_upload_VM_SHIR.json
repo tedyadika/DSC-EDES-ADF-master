@@ -1,0 +1,250 @@
+{
+	"name": "oracle_initial_heavy_upload_VM_SHIR",
+	"properties": {
+		"activities": [
+			{
+				"name": "Load each heavy table archive",
+				"description": "Loads heavy tables which were excluded from the main archive loading loop",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "initial upload skip heavy arch tables",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@split(pipeline().parameters.heavy_table_names, ',')",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "Load heavy table archive",
+							"type": "ExecutePipeline",
+							"dependsOn": [
+								{
+									"activity": "Get date column",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [
+								{
+									"name": "table_name",
+									"value": "@trim(item())"
+								}
+							],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "execute_pipeline",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"pipelineName": {
+										"value": "oracle_initial_upload_heavy_arch_table_@{pipeline().parameters.IR_alias}",
+										"type": "Expression"
+									},
+									"pipelineParametersJson": {
+										"value": "{\"instance_name\":  \"@{pipeline().parameters.instance_name}\",\n \"table_name\":  \"@{trim(item())}\",\n \"date_column\":  \"@{activity('Get date column').output.firstRow.GATE_UPLOAD_COLUMN}\"\n }",
+										"type": "Expression"
+									},
+									"checkStatusWaitTime": 600
+								}
+							}
+						},
+						{
+							"name": "Get date column",
+							"type": "Lookup",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "SELECT BR.GATE_UPLOAD_COLUMN\nFROM @{pipeline().globalParameters.environment_db}.\nTBL_BRONZE_TABLES BR\n inner join @{pipeline().globalParameters.environment_db}.TBL_STAGE_SOURCES S  on\n S.STAGE_SOURCE_ID=BR.INSTANCE_ID\nWHERE BR.SOURCE_OBJECT_NAME = @{item()}\nand S.SOURCE_NAME = '@{pipeline().parameters.instance_name}'",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "CONFIG_TABLES",
+									"type": "DatasetReference",
+									"parameters": {
+										"schema": "dbo",
+										"table_name": "ADF_WMS_CONFIG_INSTANCES"
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "check pipelines - stop VM",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "mdm_process",
+						"dependencyConditions": [
+							"Completed"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "stop_pipeline_VM_IR",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"ThisRunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"IR_alias": {
+							"value": "@pipeline().parameters.IR_alias",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "start_pipeline_VM_IR",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "start_pipeline_VM_IR",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"IR_alias": {
+							"value": "@pipeline().parameters.IR_alias",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "initial upload skip heavy arch tables",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "start_pipeline_VM_IR",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "execute_pipeline",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"pipelineName": {
+							"value": "oracle_initial_upload_skip_arch_tables_@{pipeline().parameters.IR_alias}",
+							"type": "Expression"
+						},
+						"pipelineParametersJson": {
+							"value": "{\"instance_name\": \"@{pipeline().parameters.instance_name}\",\n \"skip_arch_table_names\": \"@{pipeline().parameters.heavy_table_names}\" }",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "mdm_process",
+				"description": "fill cross reference config table",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Load each heavy table archive",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "execute_pipeline",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"pipelineName": {
+							"value": "oracle_mdm_process_@{pipeline().parameters.IR_alias}",
+							"type": "Expression"
+						},
+						"pipelineParametersJson": {
+							"value": "{ \"instance_name\":  \"@{pipeline().parameters.instance_name}\"\n  }",
+							"type": "Expression"
+						},
+						"checkStatusWaitTime": 30
+					}
+				}
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "esval_1"
+			},
+			"heavy_table_names": {
+				"type": "string",
+				"defaultValue": "'ORDACT', 'DLYTRN'"
+			},
+			"IR_alias": {
+				"type": "string",
+				"defaultValue": "VM_SHIR_00"
+			}
+		},
+		"variables": {
+			"storage_container": {
+				"type": "String",
+				"defaultValue": "development"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_oracle/main_dynamic_SHIR"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-04-11T10:12:53Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

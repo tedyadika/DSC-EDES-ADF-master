@@ -1,0 +1,219 @@
+{
+	"name": "mongo_upload_VM_SHIR",
+	"properties": {
+		"activities": [
+			{
+				"name": "check pipelines - stop VM",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "mongo upload on VM SHIR",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "stop_pipeline_VM_IR",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"ThisRunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"IR_alias": {
+							"value": "@pipeline().parameters.IR_alias",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Trigger synapse if parameter",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "mongo upload on VM SHIR",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@pipeline().parameters.trigger_synapse",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Trigger synapse",
+							"description": "Triggers the synapse pipeline for this instance. At this point, synapse has all the data it needs in ADF stage",
+							"type": "Copy",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 1,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "DelimitedTextSource",
+									"storeSettings": {
+										"type": "AzureBlobFSReadSettings",
+										"recursive": true,
+										"enablePartitionDiscovery": false
+									},
+									"formatSettings": {
+										"type": "DelimitedTextReadSettings"
+									}
+								},
+								"sink": {
+									"type": "DelimitedTextSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "DelimitedTextWriteSettings",
+										"quoteAllText": true,
+										"fileExtension": ".txt"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "gen_trigger_csv",
+									"type": "DatasetReference",
+									"parameters": {
+										"storage_container": {
+											"value": "@pipeline().globalParameters.environment_container",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "trigger_synapse",
+									"type": "DatasetReference",
+									"parameters": {
+										"instance": {
+											"value": "@pipeline().parameters.instance_name",
+											"type": "Expression"
+										},
+										"storage_container": {
+											"value": "@pipeline().globalParameters.environment_container",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						}
+					]
+				}
+			},
+			{
+				"name": "start VM IR",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "start_pipeline_VM_IR",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"IR_alias": {
+							"value": "@pipeline().parameters.IR_alias",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "mongo upload on VM SHIR",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "start VM IR",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "execute_pipeline",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"pipelineName": {
+							"value": "mongo_upload_VM00",
+							"type": "Expression"
+						},
+						"pipelineParametersJson": {
+							"value": "{\"instance_name\": \"@{pipeline().parameters.instance_name}\",\n\"system\": \"@{pipeline().parameters.system}\",\n\"load\": \"@{pipeline().parameters.load}\"}",
+							"type": "Expression"
+						}
+					}
+				}
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "dct"
+			},
+			"system": {
+				"type": "string",
+				"defaultValue": "dct_emea"
+			},
+			"load": {
+				"type": "string",
+				"defaultValue": "full"
+			},
+			"trigger_synapse": {
+				"type": "bool",
+				"defaultValue": true
+			},
+			"IR_alias": {
+				"type": "string",
+				"defaultValue": "VM_SHIR_00"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_mongo/main_dynamic_SHIR"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-04-17T07:09:37Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

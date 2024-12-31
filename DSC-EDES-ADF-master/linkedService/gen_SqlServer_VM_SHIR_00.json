@@ -1,0 +1,52 @@
+{
+	"name": "gen_SqlServer_VM_SHIR_00",
+	"properties": {
+		"parameters": {
+			"server": {
+				"type": "string",
+				"defaultValue": "czchowspc001910.prg-dc.dhl.com"
+			},
+			"db_name": {
+				"type": "string",
+				"defaultValue": "xrays"
+			},
+			"username": {
+				"type": "string",
+				"defaultValue": "PRG-DC.DHL.COM\\srv_prgdc-datalake"
+			},
+			"password": {
+				"type": "string",
+				"defaultValue": "srv-prgdc-datalake-password"
+			},
+			"port": {
+				"type": "string",
+				"defaultValue": "1525"
+			}
+		},
+		"annotations": [],
+		"type": "SqlServer",
+		"typeProperties": {
+			"server": "@{linkedService().server},@{linkedService().port}",
+			"database": "@{linkedService().db_name}",
+			"encrypt": "mandatory",
+			"trustServerCertificate": true,
+			"authenticationType": "Windows",
+			"userName": "@{linkedService().username}",
+			"password": {
+				"type": "AzureKeyVaultSecret",
+				"store": {
+					"referenceName": "AzureKeyVault",
+					"type": "LinkedServiceReference"
+				},
+				"secretName": {
+					"value": "@linkedService().password",
+					"type": "Expression"
+				}
+			}
+		},
+		"connectVia": {
+			"referenceName": "dscemdataecosysctrvm02ctr-linked",
+			"type": "IntegrationRuntimeReference"
+		}
+	}
+}

@@ -1,0 +1,46 @@
+{
+	"name": "gen_mongo_source_VM_SHIR_00",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "gen_mongo_source_VM_SHIR_00",
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"CONNECTION_STRING_SECRET_NAME": {
+					"value": "@dataset().CONNECTION_STRING_NAME",
+					"type": "Expression"
+				},
+				"DB_NAME": {
+					"value": "@dataset().DB_NAME",
+					"type": "Expression"
+				}
+			}
+		},
+		"parameters": {
+			"CONNECTION_STRING_NAME": {
+				"type": "string",
+				"defaultValue": "RO-BI-ZA-TOMS-DR-string"
+			},
+			"DB_NAME": {
+				"type": "string",
+				"defaultValue": "opsi-cloud_toms"
+			},
+			"COLLECTION_NAME": {
+				"type": "string",
+				"defaultValue": "tomsorders"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_mongo/multi_SHIR"
+		},
+		"annotations": [],
+		"type": "MongoDbV2Collection",
+		"schema": [],
+		"typeProperties": {
+			"collection": {
+				"value": "@dataset().COLLECTION_NAME",
+				"type": "Expression"
+			}
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

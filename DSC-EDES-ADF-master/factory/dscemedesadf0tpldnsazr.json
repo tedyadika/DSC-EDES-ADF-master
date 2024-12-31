@@ -1,0 +1,54 @@
+{
+	"name": "dscemedesadf0tpldnsazr",
+	"properties": {
+		"globalParameters": {
+			"subscriptionId": {
+				"type": "string",
+				"value": "8b20e38c-72fb-4030-a702-128e713479ca"
+			},
+			"resourceGroupName": {
+				"type": "string",
+				"value": "DscEMEADataEcoSysTst"
+			},
+			"factoryName": {
+				"type": "string",
+				"value": "dscemedesadf0tpldnsazr"
+			},
+			"environment_container": {
+				"type": "string",
+				"value": "development"
+			},
+			"environment_db": {
+				"type": "string",
+				"value": "test"
+			},
+			"environment": {
+				"type": "string",
+				"value": "TEST"
+			},
+			"all_active_adfs": {
+				"type": "array",
+				"value": [
+					{
+						"adf_name": "dscemedesadf0ppldnsazr",
+						"adf_resource_group": "DscEMEADataEcoSysPrd"
+					},
+					{
+						"adf_name": "dscemedesadf0tpldnsazr",
+						"adf_resource_group": "DscEMEADataEcoSysTst"
+					},
+					{
+						"adf_name": "dscemedesadf0uatpldnsazr",
+						"adf_resource_group": "DscEMEADataEcoSysTst"
+					}
+				]
+			}
+		}
+	},
+	"location": "westeurope",
+	"identity": {
+		"type": "SystemAssigned",
+		"principalId": "2648fe3b-8f1b-4753-8bd3-fa077114f78d",
+		"tenantId": "cd99fef8-1cd3-4a2a-9bdf-15531181d65e"
+	}
+}

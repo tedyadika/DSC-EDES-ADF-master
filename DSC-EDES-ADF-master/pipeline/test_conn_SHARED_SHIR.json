@@ -1,0 +1,99 @@
+{
+	"name": "test_conn_SHARED_SHIR",
+	"properties": {
+		"activities": [
+			{
+				"name": "test_conn",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "OracleSource",
+						"partitionOption": "None",
+						"convertDecimalToInteger": false,
+						"queryTimeout": "02:00:00"
+					},
+					"dataset": {
+						"referenceName": "gen_oracle_source_SHARED_SHIR",
+						"type": "DatasetReference",
+						"parameters": {
+							"SchemaName": {
+								"value": "@pipeline().parameters.schema",
+								"type": "Expression"
+							},
+							"TableName": {
+								"value": "@pipeline().parameters.table",
+								"type": "Expression"
+							},
+							"HOST": {
+								"value": "@pipeline().parameters.host",
+								"type": "Expression"
+							},
+							"PORT": {
+								"value": "@pipeline().parameters.port",
+								"type": "Expression"
+							},
+							"SID": {
+								"value": "@pipeline().parameters.sid",
+								"type": "Expression"
+							},
+							"USER_NAME": {
+								"value": "@pipeline().parameters.user_name",
+								"type": "Expression"
+							},
+							"PASSWORD": {
+								"value": "@pipeline().parameters.password_secret",
+								"type": "Expression"
+							}
+						}
+					},
+					"firstRowOnly": true
+				}
+			}
+		],
+		"parameters": {
+			"schema": {
+				"type": "string",
+				"defaultValue": "DLXESMADP1"
+			},
+			"table": {
+				"type": "string",
+				"defaultValue": "client"
+			},
+			"host": {
+				"type": "string",
+				"defaultValue": "czchols4717.prg-dc.dhl.com"
+			},
+			"port": {
+				"type": "string",
+				"defaultValue": "1521"
+			},
+			"sid": {
+				"type": "string",
+				"defaultValue": "ESMAD1P9S"
+			},
+			"user_name": {
+				"type": "string",
+				"defaultValue": "RO_BI_ESMADP1"
+			},
+			"password_secret": {
+				"type": "string",
+				"defaultValue": "RO-BI-ESMADP1-password"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_oracle/hardcoded_shared_SHIR/data_validation"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-04-02T07:26:55Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

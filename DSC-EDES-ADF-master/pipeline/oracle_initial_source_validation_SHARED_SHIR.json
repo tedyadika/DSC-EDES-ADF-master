@@ -1,0 +1,129 @@
+{
+	"name": "oracle_initial_source_validation_SHARED_SHIR",
+	"properties": {
+		"activities": [
+			{
+				"name": "PK check Synapse",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "check_PK_synapse_SHARED_SHIR",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"instance_name": {
+							"value": "@pipeline().parameters.instance_name",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "check tables exist in source",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "check_tables_exist_SHARED_SHIR",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"instance_name": {
+							"value": "@pipeline().parameters.instance_name",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "get table rowcounts",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "get_table_row_counts_SHARED_SHIR",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"instance_name": {
+							"value": "@pipeline().parameters.instance_name",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "check_col_schema_prod_and_arch",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "check_col_schema_prod_and_arch_SHARED_SHIR",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"instance_name": {
+							"value": "@pipeline().parameters.instance_name",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "check_col_names_are_valid",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "check_col_names_are_valid_SHARED_SHIR",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"instance_name": {
+							"value": "@pipeline().parameters.instance_name",
+							"type": "Expression"
+						}
+					}
+				}
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "czpoh_4"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_oracle/hardcoded_shared_SHIR/data_validation"
+		},
+		"annotations": [],
+		"lastPublishTime": "2023-10-05T09:02:44Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

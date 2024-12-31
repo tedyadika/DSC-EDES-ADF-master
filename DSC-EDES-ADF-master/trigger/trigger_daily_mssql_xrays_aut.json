@@ -1,0 +1,43 @@
+{
+	"name": "trigger_daily_mssql_xrays_aut",
+	"properties": {
+		"annotations": [],
+		"runtimeState": "Started",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "mssql_upload_VM_SHIR",
+					"type": "PipelineReference"
+				},
+				"parameters": {
+					"instance_name": "xrays_aut",
+					"system": "xrays_cz",
+					"load": "full",
+					"trigger_synapse": true,
+					"IR_alias": "VM_SHIR_00"
+				}
+			}
+		],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Week",
+				"interval": 1,
+				"startTime": "2024-10-24T13:31:00Z",
+				"endTime": "2024-12-24T14:39:37Z",
+				"timeZone": "UTC",
+				"schedule": {
+					"minutes": [
+						0
+					],
+					"hours": [
+						9
+					],
+					"weekDays": [
+						"Saturday"
+					]
+				}
+			}
+		}
+	}
+}

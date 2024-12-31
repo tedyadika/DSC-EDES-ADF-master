@@ -1,0 +1,78 @@
+{
+	"name": "gen_oracle_source_VM_SHIR_00",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "gen_oracle_source_VM_SHIR_00",
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"HOST": {
+					"value": "@dataset().HOST",
+					"type": "Expression"
+				},
+				"PORT": {
+					"value": "@dataset().PORT",
+					"type": "Expression"
+				},
+				"SID": {
+					"value": "@dataset().SID",
+					"type": "Expression"
+				},
+				"USER_NAME": {
+					"value": "@dataset().USER_NAME",
+					"type": "Expression"
+				},
+				"PASSWORD": {
+					"value": "@dataset().PASSWORD",
+					"type": "Expression"
+				}
+			}
+		},
+		"parameters": {
+			"SchemaName": {
+				"type": "string",
+				"defaultValue": "DLXCZCHEP2"
+			},
+			"TableName": {
+				"type": "string",
+				"defaultValue": "SHIPMENT"
+			},
+			"HOST": {
+				"type": "string",
+				"defaultValue": "czstlls0679.prg-dc.dhl.com "
+			},
+			"PORT": {
+				"type": "string",
+				"defaultValue": "1521"
+			},
+			"SID": {
+				"type": "string",
+				"defaultValue": "WR262PS"
+			},
+			"USER_NAME": {
+				"type": "string",
+				"defaultValue": "RO_BI_CZCHEP2"
+			},
+			"PASSWORD": {
+				"type": "string",
+				"defaultValue": "###"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_oracle/multi_SHIR"
+		},
+		"annotations": [],
+		"type": "OracleTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": {
+				"value": "@dataset().SchemaName",
+				"type": "Expression"
+			},
+			"table": {
+				"value": "@dataset().TableName",
+				"type": "Expression"
+			}
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

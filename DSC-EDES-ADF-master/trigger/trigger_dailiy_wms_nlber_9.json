@@ -1,0 +1,37 @@
+{
+	"name": "trigger_dailiy_wms_nlber_9",
+	"properties": {
+		"annotations": [],
+		"runtimeState": "Stopped",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "oracle_daily_upload_VM_SHIR",
+					"type": "PipelineReference"
+				},
+				"parameters": {
+					"instance_name": "nlber_9",
+					"system": "blueyonder",
+					"IR_alias": "VM_SHIR_00"
+				}
+			}
+		],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Day",
+				"interval": 1,
+				"startTime": "2024-07-26T07:52:00Z",
+				"timeZone": "UTC",
+				"schedule": {
+					"minutes": [
+						15
+					],
+					"hours": [
+						23
+					]
+				}
+			}
+		}
+	}
+}

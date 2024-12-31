@@ -1,0 +1,44 @@
+{
+	"name": "gen_rest_api_source_on_prem_shared_SHIR",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"description": "Linked service for general api source - accepts url, username and the name of the secret in key vault as parameters. Runs using shared on premise SHIR and basic authentication.",
+		"parameters": {
+			"url": {
+				"type": "string",
+				"defaultValue": "https://mdmconnect.dhl.com/api/rest/"
+			},
+			"username": {
+				"type": "string",
+				"defaultValue": "zXK21np7M0ZnYsVTRZzQI7EP1M8WwVpR"
+			},
+			"password_secret": {
+				"type": "string",
+				"defaultValue": "mdm-password"
+			}
+		},
+		"annotations": [],
+		"type": "RestService",
+		"typeProperties": {
+			"url": "@{linkedService().url}",
+			"enableServerCertificateValidation": false,
+			"authenticationType": "Basic",
+			"userName": "@{linkedService().username}",
+			"password": {
+				"type": "AzureKeyVaultSecret",
+				"store": {
+					"referenceName": "AzureKeyVault",
+					"type": "LinkedServiceReference"
+				},
+				"secretName": {
+					"value": "@linkedService().password_secret",
+					"type": "Expression"
+				}
+			}
+		},
+		"connectVia": {
+			"referenceName": "DSCGlobalIntegrationRuntime-OnPrem-WE",
+			"type": "IntegrationRuntimeReference"
+		}
+	}
+}

@@ -1,0 +1,221 @@
+{
+	"name": "synapse_daily_multisystem",
+	"properties": {
+		"activities": [
+			{
+				"name": "Get instance info",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT CI.*, SS.SYSTEM_DOMAIN, SS.SYSTEM_NAME FROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_AZURE_SQL_CONNECTION_INFO CI\nLEFT JOIN @{pipeline().globalParameters.environment_db}.TBL_STAGE_SOURCES SS\nON SS.STAGE_SOURCE_ID = CI.STAGE_SOURCE_ID\nWHERE MODE = 'PROD' \nAND [SOURCE_NAME]='@{pipeline().parameters.instance_name}'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "ADF_WMS_CONFIG_INSTANCES"
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "Run for each system",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Get instance info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set variable system_count",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Get instance info').output.value",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "Load system",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "synapse_daily_upload_autoresolve_IR",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"instance_name": {
+										"value": "@pipeline().parameters.instance_name",
+										"type": "Expression"
+									},
+									"system": {
+										"value": "@item().SYSTEM_NAME",
+										"type": "Expression"
+									},
+									"is_last_system": {
+										"value": "@if(\r\n    equals(variables('system_count'), 1), \r\n    'true', \r\n    'false'\r\n)",
+										"type": "Expression"
+									}
+								}
+							}
+						},
+						{
+							"name": "Decrease system_count",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Set temp",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "system_count",
+								"value": {
+									"value": "@sub(variables('temp'), 1)",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Set temp",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Load system",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "temp",
+								"value": {
+									"value": "@variables('system_count')",
+									"type": "Expression"
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Get system count",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT COUNT(*) AS CNT FROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_AZURE_SQL_CONNECTION_INFO CI\nLEFT JOIN @{pipeline().globalParameters.environment_db}.TBL_STAGE_SOURCES SS\nON SS.STAGE_SOURCE_ID = CI.STAGE_SOURCE_ID\nWHERE MODE = 'PROD' \nAND [SOURCE_NAME]='@{pipeline().parameters.instance_name}'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "ADF_WMS_CONFIG_INSTANCES"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Set variable system_count",
+				"type": "SetVariable",
+				"dependsOn": [
+					{
+						"activity": "Get system count",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "system_count",
+					"value": {
+						"value": "@activity('Get system count').output.firstRow.CNT",
+						"type": "Expression"
+					}
+				}
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "tnt"
+			}
+		},
+		"variables": {
+			"system_count": {
+				"type": "Integer"
+			},
+			"temp": {
+				"type": "Integer"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_synapse/main_autoresolve_IR"
+		},
+		"annotations": []
+	}
+}

@@ -1,0 +1,36 @@
+{
+	"name": "DsEcoSysSqlDB",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_SQL_DB_CONFIG_CTR",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"TableName": {
+				"type": "string",
+				"defaultValue": "test_mdm"
+			},
+			"SchemaName": {
+				"type": "string",
+				"defaultValue": "TBL_MDM_LINK_CONFIG"
+			}
+		},
+		"folder": {
+			"name": "development/playground"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": {
+				"value": "@dataset().SchemaName",
+				"type": "Expression"
+			},
+			"table": {
+				"value": "@dataset().TableName",
+				"type": "Expression"
+			}
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

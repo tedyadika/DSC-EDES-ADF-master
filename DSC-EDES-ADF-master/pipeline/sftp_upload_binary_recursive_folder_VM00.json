@@ -1,0 +1,209 @@
+{
+	"name": "sftp_upload_binary_recursive_folder_VM00",
+	"properties": {
+		"description": "Pipeline to load recursively full folder from SFTP with all subfolders and files inside",
+		"activities": [
+			{
+				"name": "Get instance info",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Get stage source ID",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT * FROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_SFTP_CONNECTION_INFO WHERE [STAGE_SOURCE_ID]='@{activity('Get stage source ID').output.firstRow.STAGE_SOURCE_ID}' AND MODE='@{pipeline().parameters.mode}'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "unused"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Get stage source ID",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT STAGE_SOURCE_ID,\n\tSYSTEM_NAME,\n\tLOWER(SYSTEM_DOMAIN) SYSTEM_DOMAIN\n FROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_SOURCES WHERE [SOURCE_NAME]='@{pipeline().parameters.instance_name}' AND SYSTEM_NAME='@{pipeline().parameters.system}'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "Unused"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Copy Full Binary Folder",
+				"type": "Copy",
+				"dependsOn": [
+					{
+						"activity": "Get instance info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [
+					{
+						"name": "Source",
+						"value": "@{activity('Get instance info').output.firstRow.FOLDER_PATH}/@{'<file_name>'}"
+					},
+					{
+						"name": "Destination",
+						"value": "@{pipeline().globalParameters.environment_container}/@{concat('prestage/', toLower(concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN)), '/', pipeline().parameters.instance_name, '/', activity('Get instance info').output.firstRow.FOLDER_PATH)}/"
+					}
+				],
+				"typeProperties": {
+					"source": {
+						"type": "BinarySource",
+						"storeSettings": {
+							"type": "SftpReadSettings",
+							"recursive": true,
+							"wildcardFileName": {
+								"value": "@pipeline().parameters.file_pattern",
+								"type": "Expression"
+							},
+							"deleteFilesAfterCompletion": false,
+							"disableChunking": false
+						},
+						"formatSettings": {
+							"type": "BinaryReadSettings"
+						}
+					},
+					"sink": {
+						"type": "BinarySink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings",
+							"copyBehavior": "PreserveHierarchy"
+						}
+					},
+					"enableStaging": false,
+					"skipErrorFile": {
+						"fileForbidden": true
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "sftp_binary_source_VM_SHIR_00",
+						"type": "DatasetReference",
+						"parameters": {
+							"folder_path": {
+								"value": "@activity('Get instance info').output.firstRow.FOLDER_PATH",
+								"type": "Expression"
+							},
+							"HOST": {
+								"value": "@activity('Get instance info').output.firstRow.HOST",
+								"type": "Expression"
+							},
+							"USERNAME": {
+								"value": "@activity('Get instance info').output.firstRow.USER_NAME",
+								"type": "Expression"
+							},
+							"PASSWORD": {
+								"value": "@activity('Get instance info').output.firstRow.PASSWORD",
+								"type": "Expression"
+							},
+							"PORT": {
+								"value": "@activity('Get instance info').output.firstRow.PORT",
+								"type": "Expression"
+							},
+							"file_name": {
+								"value": "@pipeline().parameters.file_pattern",
+								"type": "Expression"
+							}
+						}
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "gen_data_lake_binary",
+						"type": "DatasetReference",
+						"parameters": {
+							"folder_path": {
+								"value": "stage/@{toLower(concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN))}/@{pipeline().parameters.instance_name}/@{pipeline().parameters.mode}_BCK/@{activity('Get instance info').output.firstRow.FOLDER_PATH}",
+								"type": "Expression"
+							},
+							"container": {
+								"value": "@pipeline().globalParameters.environment_container",
+								"type": "Expression"
+							}
+						}
+					}
+				]
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "czchegy"
+			},
+			"system": {
+				"type": "string",
+				"defaultValue": "goodyear"
+			},
+			"mode": {
+				"type": "string",
+				"defaultValue": "PROD"
+			},
+			"file_pattern": {
+				"type": "string",
+				"defaultValue": "*.xlsx"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_sftp/deploy_multi_SHIR"
+		},
+		"annotations": []
+	}
+}

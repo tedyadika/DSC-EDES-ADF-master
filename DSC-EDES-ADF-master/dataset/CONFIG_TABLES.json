@@ -1,0 +1,143 @@
+{
+	"name": "CONFIG_TABLES",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LS_SQL_DB_CONFIG_CTR",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"schema": {
+				"type": "string",
+				"defaultValue": "dbo"
+			},
+			"table_name": {
+				"type": "string",
+				"defaultValue": "ADF_WMS_CONFIG_INSTANCES"
+			}
+		},
+		"folder": {
+			"name": "development/utility"
+		},
+		"annotations": [],
+		"type": "AzureSqlTable",
+		"schema": [
+			{
+				"name": "INSTANCE_NAME",
+				"type": "varchar"
+			},
+			{
+				"name": "SOURCE_OBJECT_NAME",
+				"type": "varchar"
+			},
+			{
+				"name": "UPLOAD_LOGIC",
+				"type": "varchar"
+			},
+			{
+				"name": "TABLE_TYPE",
+				"type": "varchar"
+			},
+			{
+				"name": "SYSTEM",
+				"type": "varchar"
+			},
+			{
+				"name": "DELETE_LOGIC_FLAG",
+				"type": "bigint",
+				"precision": 19
+			},
+			{
+				"name": "BUSINESS_KEY_LIST",
+				"type": "varchar"
+			},
+			{
+				"name": "FK_JOIN_ORDER",
+				"type": "varchar"
+			},
+			{
+				"name": "ACTIVE_FLAG",
+				"type": "bigint",
+				"precision": 19
+			},
+			{
+				"name": "LOAD_ORDER",
+				"type": "bigint",
+				"precision": 19
+			},
+			{
+				"name": "PARTITION_COLUMN",
+				"type": "varchar"
+			},
+			{
+				"name": "PARTITION_VALUE",
+				"type": "varchar"
+			},
+			{
+				"name": "NOTEBOOK_PATH_INITIAL_LOAD",
+				"type": "varchar"
+			},
+			{
+				"name": "NOTEBOOK_PATH_DAILY_LOAD",
+				"type": "varchar"
+			},
+			{
+				"name": "SIGNIFICANT_KEY_LIST",
+				"type": "varchar"
+			},
+			{
+				"name": "PK_SURROGATE_KEY_FLAG",
+				"type": "bigint",
+				"precision": 19
+			},
+			{
+				"name": "FK_JOIN_INFO",
+				"type": "varchar"
+			},
+			{
+				"name": "FK_SOURCE_TABLES_INFO",
+				"type": "varchar"
+			},
+			{
+				"name": "GATE_DELETE_COLUMN",
+				"type": "varchar"
+			},
+			{
+				"name": "GATE_UPLOAD_COLUMN",
+				"type": "varchar"
+			},
+			{
+				"name": "REUSE_BK_FLAG",
+				"type": "int",
+				"precision": 10
+			},
+			{
+				"name": "UPSERT_INSERT_GATE_FLAG",
+				"type": "bigint",
+				"precision": 19
+			},
+			{
+				"name": "DROP_COLUMNS",
+				"type": "varchar"
+			},
+			{
+				"name": "DUMMY_VALUE_COLUMNS",
+				"type": "varchar"
+			},
+			{
+				"name": "NOTES",
+				"type": "varchar"
+			}
+		],
+		"typeProperties": {
+			"schema": {
+				"value": "@dataset().schema",
+				"type": "Expression"
+			},
+			"table": {
+				"value": "@dataset().table_name",
+				"type": "Expression"
+			}
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

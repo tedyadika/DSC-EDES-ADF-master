@@ -1,0 +1,21 @@
+{
+	"name": "gen_SqlServer_SQL_user",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"annotations": [],
+		"type": "SqlServer",
+		"typeProperties": {
+			"server": "czchowspc001910.1525",
+			"database": "xrays",
+			"encrypt": "mandatory",
+			"trustServerCertificate": true,
+			"authenticationType": "SQL",
+			"userName": "srv_prgdc-tmsdata",
+			"encryptedCredential": "eyJDcmVkZW50aWFsSWQiOiJmNTdkMzE0OC04ZWUxLTRmZGYtYWI2MC02NzNlZWNkNWYwYjIiLCJWZXJzaW9uIjoiMi4wIiwiQ2xhc3NUeXBlIjoiTWljcm9zb2Z0LkRhdGFQcm94eS5Db3JlLkludGVyU2VydmljZURhdGFDb250cmFjdC5DcmVkZW50aWFsU1UwNkNZMTQifQ=="
+		},
+		"connectVia": {
+			"referenceName": "DSCGlobalIntegrationRuntime-OnPrem-WE",
+			"type": "IntegrationRuntimeReference"
+		}
+	}
+}

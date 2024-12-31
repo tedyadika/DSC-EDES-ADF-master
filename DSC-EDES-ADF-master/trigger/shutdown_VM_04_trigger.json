@@ -1,0 +1,29 @@
+{
+	"name": "shutdown_VM_04_trigger",
+	"properties": {
+		"description": "Shutdowns VM_SHIR_04 (Ctr Config)",
+		"annotations": [],
+		"runtimeState": "Started",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "stop_pipeline_VM_IR",
+					"type": "PipelineReference"
+				},
+				"parameters": {
+					"ThisRunId": "1234",
+					"IR_alias": "VM_SHIR_04"
+				}
+			}
+		],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Hour",
+				"interval": 2,
+				"startTime": "2024-05-30T14:24:00",
+				"timeZone": "W. Europe Standard Time"
+			}
+		}
+	}
+}

@@ -1,0 +1,43 @@
+{
+	"name": "trigger_daily_wms_czchegy",
+	"properties": {
+		"annotations": [],
+		"runtimeState": "Started",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "sftp_incremental_upload_resilient_xlsx_VM_SHIR",
+					"type": "PipelineReference"
+				},
+				"parameters": {
+					"instance_name": "czchegy",
+					"system": "goodyear",
+					"IR_alias": "VM_SHIR_00",
+					"frequency_name": "daily_standard",
+					"delete_from_sftp_after_completion": true,
+					"trigger_synapse": true,
+					"incremental_days": 2
+				}
+			}
+		],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Day",
+				"interval": 1,
+				"startTime": "2024-12-16T10:00:00Z",
+				"timeZone": "UTC",
+				"schedule": {
+					"minutes": [
+						30
+					],
+					"hours": [
+						5,
+						15,
+						22
+					]
+				}
+			}
+		}
+	}
+}

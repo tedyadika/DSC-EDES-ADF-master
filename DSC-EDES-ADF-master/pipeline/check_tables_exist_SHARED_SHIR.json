@@ -1,0 +1,331 @@
+{
+	"name": "check_tables_exist_SHARED_SHIR",
+	"properties": {
+		"activities": [
+			{
+				"name": "Check each table exists in prod and arch",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Get ARCH instance info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Get PROD instance info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "get table info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('get table info').output.value",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "LookupPROD",
+							"type": "Lookup",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [
+								{
+									"name": "table",
+									"value": "@item().SOURCE_OBJECT_NAME"
+								}
+							],
+							"typeProperties": {
+								"source": {
+									"type": "OracleSource",
+									"partitionOption": "None",
+									"queryTimeout": "02:00:00"
+								},
+								"dataset": {
+									"referenceName": "gen_oracle_source_SHARED_SHIR",
+									"type": "DatasetReference",
+									"parameters": {
+										"SchemaName": {
+											"value": "@activity('Get PROD instance info').output.firstRow.SOURCE_SCHEMA",
+											"type": "Expression"
+										},
+										"TableName": {
+											"value": "@item().SOURCE_OBJECT_NAME",
+											"type": "Expression"
+										},
+										"HOST": {
+											"value": "@activity('Get PROD instance info').output.firstRow.HOST",
+											"type": "Expression"
+										},
+										"PORT": {
+											"value": "@activity('Get PROD instance info').output.firstRow.PORT",
+											"type": "Expression"
+										},
+										"SID": {
+											"value": "@activity('Get PROD instance info').output.firstRow.SID",
+											"type": "Expression"
+										},
+										"USER_NAME": {
+											"value": "@activity('Get PROD instance info').output.firstRow.USER_NAME",
+											"type": "Expression"
+										},
+										"PASSWORD": {
+											"value": "@activity('Get PROD instance info').output.firstRow.PASSWORD",
+											"type": "Expression"
+										}
+									}
+								}
+							}
+						},
+						{
+							"name": "LookupARCH",
+							"type": "Lookup",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [
+								{
+									"name": "table",
+									"value": "@item().SOURCE_OBJECT_NAME"
+								}
+							],
+							"typeProperties": {
+								"source": {
+									"type": "OracleSource",
+									"partitionOption": "None",
+									"queryTimeout": "02:00:00"
+								},
+								"dataset": {
+									"referenceName": "gen_oracle_source_SHARED_SHIR",
+									"type": "DatasetReference",
+									"parameters": {
+										"SchemaName": {
+											"value": "@activity('Get ARCH instance info').output.firstRow.SOURCE_SCHEMA",
+											"type": "Expression"
+										},
+										"TableName": {
+											"value": "@item().SOURCE_OBJECT_NAME",
+											"type": "Expression"
+										},
+										"HOST": {
+											"value": "@activity('Get ARCH instance info').output.firstRow.HOST",
+											"type": "Expression"
+										},
+										"PORT": {
+											"value": "@activity('Get ARCH instance info').output.firstRow.PORT",
+											"type": "Expression"
+										},
+										"SID": {
+											"value": "@activity('Get ARCH instance info').output.firstRow.SID",
+											"type": "Expression"
+										},
+										"USER_NAME": {
+											"value": "@activity('Get ARCH instance info').output.firstRow.USER_NAME",
+											"type": "Expression"
+										},
+										"PASSWORD": {
+											"value": "@activity('Get ARCH instance info').output.firstRow.PASSWORD",
+											"type": "Expression"
+										}
+									}
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "get source info",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "select \nSTAGE_SOURCE_ID\n, SOURCE_NAME\n, SYSTEM_NAME\n, SYSTEM_DOMAIN\n, CONNECTOR\n, ARCHIVE_FLAG\nfrom @{pipeline().globalParameters.environment_db}.[TBL_STAGE_SOURCES] \nwhere 1=1\nAND ACTIVE_FLAG = 1 \nAND SOURCE_NAME = '@{pipeline().parameters.instance_name}';",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "@pipeline().globalParameters.environment_db",
+							"table_name": "ADF_WMS_CONFIG_INSTANCES"
+						}
+					}
+				}
+			},
+			{
+				"name": "Get PROD instance info",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "get source info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT * \nFROM \n@{pipeline().globalParameters.environment_db}.TBL_STAGE_ORACLE_CONNECTION_INFO \nWHERE 1=1\nAND [STAGE_SOURCE_ID] = '@{activity('get source info').output.firstRow.STAGE_SOURCE_ID}'\nAND [MODE]='PROD';",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": {
+								"value": "@pipeline().globalParameters.environment_db",
+								"type": "Expression"
+							},
+							"table_name": "TBL_STAGE_ORACLE_CONNECTION_INFO"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Get ARCH instance info",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "get source info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT * \nFROM \n@{pipeline().globalParameters.environment_db}.TBL_STAGE_ORACLE_CONNECTION_INFO \nWHERE 1=1\nAND [STAGE_SOURCE_ID]= '@{activity('get source info').output.firstRow.STAGE_SOURCE_ID}'\nAND '@{activity('get source info').output.firstRow.ARCHIVE_FLAG}' = 'True'\nAND [MODE]='ARCH';",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": {
+								"value": "@pipeline().globalParameters.environment_db",
+								"type": "Expression"
+							},
+							"table_name": "TBL_STAGE_ORACLE_CONNECTION_INFO"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "get table info",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "get source info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "select SOURCE_OBJECT_NAME\nFROM test.TBL_STAGE_TABLES\nWHERE 1=1\nAND STAGE_SOURCE_ID = @{activity('get source info').output.firstRow.STAGE_SOURCE_ID}\nAND ACTIVE_FLAG = 1 \nORDER BY LOAD_ORDER;",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": {
+								"value": "@pipeline().globalParameters.environment_db",
+								"type": "Expression"
+							},
+							"table_name": "TBL_STAGE_SOURCES"
+						}
+					},
+					"firstRowOnly": false
+				}
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "czpoh_4"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_oracle/hardcoded_shared_SHIR/data_validation"
+		},
+		"annotations": [],
+		"lastPublishTime": "2023-10-05T09:02:44Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

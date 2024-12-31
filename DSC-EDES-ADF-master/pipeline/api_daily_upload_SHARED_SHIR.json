@@ -1,0 +1,356 @@
+{
+	"name": "api_daily_upload_SHARED_SHIR",
+	"properties": {
+		"activities": [
+			{
+				"name": "Get MODE instance info",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT S.SOURCE_NAME as INSTANCE_NAME, S.SYSTEM_DOMAIN, S.SYSTEM_NAME, BASE_URL, LOWER(CONCAT(S.SYSTEM_NAME, '_', S.SYSTEM_DOMAIN)) [SYSTEM],RELATIVE_URL, FILTER_URL, USER_NAME, PASSWORD, TARGET_STORAGE_ACCOUNT \nFROM @{pipeline().globalParameters.environment_db}.[TBL_STAGE_API_CONNECTION_INFO] CI inner join @{pipeline().globalParameters.environment_db}.TBL_STAGE_SOURCES S on\nCI.STAGE_SOURCE_ID=S.STAGE_SOURCE_ID\nwhere S.SOURCE_NAME='@{pipeline().parameters.instance_name}' AND [MODE]='@{pipeline().parameters.mode}' AND CI.ACTIVE_FLAG = 1",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "xxx",
+							"table_name": "xxx"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Get table names",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT st.SOURCE_OBJECT_NAME TABLE_NAME, S.SOURCE_NAME INSTANCE_NAME,\nLOAD_ARCHIVE_FLAG DELETE_LOGIC_FLAG, null BUSINESS_KEY_LIST, LOAD_ORDER,\nKEY_COLUMNS_ARCH, LOWER(CONCAT(S.SYSTEM_NAME, '_', S.SYSTEM_DOMAIN)) [SYSTEM], LOWER_BOUND, PARTITION_COL_NAME_ARCH, PARTITION_COL_NAME_PROD, UPPER_BOUND\n FROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_TABLES ST inner join \n @{pipeline().globalParameters.environment_db}.TBL_STAGE_SOURCES S on\nST.STAGE_SOURCE_ID=S.STAGE_SOURCE_ID\nwhere  S.SOURCE_NAME='@{pipeline().parameters.instance_name}'\nAND ST.ACTIVE_FLAG = 1\nORDER BY LOAD_ORDER",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "xxx",
+							"table_name": "xxx"
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "For Each Table",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Get MODE instance info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Get table names",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Get table names').output.value",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Load API table",
+							"type": "Copy",
+							"dependsOn": [
+								{
+									"activity": "Delete Previous Load",
+									"dependencyConditions": [
+										"Completed"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [
+								{
+									"name": "Source",
+									"value": "@{concat(item().TABLE_NAME, activity('Get MODE instance info').output.firstRow.RELATIVE_URL, activity('Get MODE instance info').output.firstRow.FILTER_URL)}"
+								},
+								{
+									"name": "Destination",
+									"value": "@{pipeline().globalParameters.environment_container}/@{'stage'}/@{activity('Get MODE instance info').output.firstRow.SYSTEM}/@{pipeline().parameters.instance_name}/PROD/@{item().TABLE_NAME}/current/"
+								},
+								{
+									"name": "TABLE_NAME",
+									"value": "@item().TABLE_NAME"
+								}
+							],
+							"typeProperties": {
+								"source": {
+									"type": "RestSource",
+									"httpRequestTimeout": "00:01:40",
+									"requestInterval": "00.00:00:00.010",
+									"requestMethod": "GET",
+									"paginationRules": {
+										"supportRFC5988": "true"
+									}
+								},
+								"sink": {
+									"type": "JsonSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "JsonWriteSettings"
+									}
+								},
+								"enableStaging": false
+							},
+							"inputs": [
+								{
+									"referenceName": "gen_rest_api_SHARED_SHIR",
+									"type": "DatasetReference",
+									"parameters": {
+										"base_url": {
+											"value": "@activity('Get MODE instance info').output.firstRow.BASE_URL",
+											"type": "Expression"
+										},
+										"relative_url": {
+											"value": "@{item().TABLE_NAME}@{activity('Get MODE instance info').output.firstRow.RELATIVE_URL}@{activity('Get MODE instance info').output.firstRow.FILTER_URL}",
+											"type": "Expression"
+										},
+										"username": {
+											"value": "@activity('Get MODE instance info').output.firstRow.USER_NAME",
+											"type": "Expression"
+										},
+										"password_secret": {
+											"value": "@activity('Get MODE instance info').output.firstRow.PASSWORD",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "gen_api_json_sink",
+									"type": "DatasetReference",
+									"parameters": {
+										"storage_container": {
+											"value": "@pipeline().globalParameters.environment_container",
+											"type": "Expression"
+										},
+										"mode": {
+											"value": "@pipeline().parameters.mode",
+											"type": "Expression"
+										},
+										"system": {
+											"value": "@activity('Get MODE instance info').output.firstRow.SYSTEM",
+											"type": "Expression"
+										},
+										"instance_name": {
+											"value": "@pipeline().parameters.instance_name",
+											"type": "Expression"
+										},
+										"source_object_name": {
+											"value": "@item().TABLE_NAME",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						},
+						{
+							"name": "Delete Previous Load",
+							"type": "Delete",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [
+								{
+									"name": "TABLE_NAME",
+									"value": "@item().TABLE_NAME"
+								}
+							],
+							"typeProperties": {
+								"dataset": {
+									"referenceName": "gen_api_json_sink",
+									"type": "DatasetReference",
+									"parameters": {
+										"storage_container": {
+											"value": "@pipeline().globalParameters.environment_container",
+											"type": "Expression"
+										},
+										"mode": {
+											"value": "@pipeline().parameters.mode",
+											"type": "Expression"
+										},
+										"system": {
+											"value": "@activity('Get MODE instance info').output.firstRow.SYSTEM",
+											"type": "Expression"
+										},
+										"instance_name": {
+											"value": "@pipeline().parameters.instance_name",
+											"type": "Expression"
+										},
+										"source_object_name": {
+											"value": "@item().TABLE_NAME",
+											"type": "Expression"
+										}
+									}
+								},
+								"enableLogging": false,
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"enablePartitionDiscovery": false
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Trigger synapse and archiving pipelines",
+				"description": "Triggers the synapse pipeline for this instance. At this point, synapse has all the data it needs in ADF stage",
+				"type": "Copy",
+				"dependsOn": [
+					{
+						"activity": "For Each Table",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "DelimitedTextSource",
+						"storeSettings": {
+							"type": "AzureBlobFSReadSettings",
+							"recursive": true,
+							"enablePartitionDiscovery": false
+						},
+						"formatSettings": {
+							"type": "DelimitedTextReadSettings"
+						}
+					},
+					"sink": {
+						"type": "DelimitedTextSink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings"
+						},
+						"formatSettings": {
+							"type": "DelimitedTextWriteSettings",
+							"quoteAllText": true,
+							"fileExtension": ".txt"
+						}
+					},
+					"enableStaging": false,
+					"translator": {
+						"type": "TabularTranslator",
+						"typeConversion": true,
+						"typeConversionSettings": {
+							"allowDataTruncation": true,
+							"treatBooleanAsNumber": false
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "gen_trigger_csv",
+						"type": "DatasetReference",
+						"parameters": {
+							"storage_container": {
+								"value": "@pipeline().globalParameters.environment_container",
+								"type": "Expression"
+							}
+						}
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "trigger_synapse",
+						"type": "DatasetReference",
+						"parameters": {
+							"instance": {
+								"value": "@pipeline().parameters.instance_name",
+								"type": "Expression"
+							},
+							"storage_container": {
+								"value": "@pipeline().globalParameters.environment_container",
+								"type": "Expression"
+							}
+						}
+					}
+				]
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "xfunctional"
+			},
+			"mode": {
+				"type": "string",
+				"defaultValue": "PROD"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_api/hardcoded_shared_SHIR"
+		},
+		"annotations": [],
+		"lastPublishTime": "2023-12-08T12:07:32Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

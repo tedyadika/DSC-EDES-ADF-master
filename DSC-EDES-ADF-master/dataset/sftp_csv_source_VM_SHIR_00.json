@@ -1,0 +1,76 @@
+{
+	"name": "sftp_csv_source_VM_SHIR_00",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "gen_sftp_source_VM_SHIR_00",
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"HOST": {
+					"value": "@dataset().HOST",
+					"type": "Expression"
+				},
+				"USER_NAME": {
+					"value": "@dataset().USER_NAME",
+					"type": "Expression"
+				},
+				"PASSWORD_SECRET": {
+					"value": "@dataset().PASSWORD_SECRET",
+					"type": "Expression"
+				},
+				"PORT": {
+					"value": "@dataset().PORT",
+					"type": "Expression"
+				}
+			}
+		},
+		"parameters": {
+			"HOST": {
+				"type": "string",
+				"defaultValue": "ftp2-dhllink-qa.dhl.com"
+			},
+			"USER_NAME": {
+				"type": "string",
+				"defaultValue": "lbasedtalke_tst_sftp"
+			},
+			"PASSWORD_SECRET": {
+				"type": "string",
+				"defaultValue": "lbasedtalke-tst-sftp-password"
+			},
+			"PORT": {
+				"type": "string",
+				"defaultValue": "22"
+			},
+			"folder": {
+				"type": "string",
+				"defaultValue": "out"
+			},
+			"filepath": {
+				"type": "string",
+				"defaultValue": "DLSHI_20240924134057.csv"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_sftp/multi_SHIR"
+		},
+		"annotations": [],
+		"type": "DelimitedText",
+		"typeProperties": {
+			"location": {
+				"type": "SftpLocation",
+				"fileName": {
+					"value": "@dataset().filepath",
+					"type": "Expression"
+				},
+				"folderPath": {
+					"value": "@dataset().folder",
+					"type": "Expression"
+				}
+			},
+			"columnDelimiter": ";",
+			"escapeChar": "\\",
+			"firstRowAsHeader": true,
+			"quoteChar": "\""
+		},
+		"schema": []
+	}
+}

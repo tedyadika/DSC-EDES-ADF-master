@@ -1,0 +1,45 @@
+{
+	"name": "trigger_daily_wms_czche_2",
+	"properties": {
+		"annotations": [],
+		"runtimeState": "Stopped",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "oracle_daily_upload_VM_SHIR",
+					"type": "PipelineReference"
+				},
+				"parameters": {
+					"instance_name": "czche_2",
+					"system": "blueyonder",
+					"IR_alias": "VM_SHIR_04"
+				}
+			}
+		],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Week",
+				"interval": 1,
+				"startTime": "2024-06-18T15:24:00Z",
+				"timeZone": "UTC",
+				"schedule": {
+					"minutes": [
+						50
+					],
+					"hours": [
+						22
+					],
+					"weekDays": [
+						"Monday",
+						"Tuesday",
+						"Wednesday",
+						"Thursday",
+						"Friday",
+						"Sunday"
+					]
+				}
+			}
+		}
+	}
+}

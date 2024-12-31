@@ -1,0 +1,48 @@
+{
+	"name": "gen_oracle_source",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"parameters": {
+			"HOST": {
+				"type": "string",
+				"defaultValue": "a"
+			},
+			"PORT": {
+				"type": "string",
+				"defaultValue": "s"
+			},
+			"SID": {
+				"type": "string",
+				"defaultValue": "d"
+			},
+			"USER_NAME": {
+				"type": "string",
+				"defaultValue": "f"
+			},
+			"PASSWORD": {
+				"type": "string",
+				"defaultValue": "g"
+			}
+		},
+		"annotations": [],
+		"type": "Oracle",
+		"typeProperties": {
+			"connectionString": "host=@{linkedService().HOST};port=@{linkedService().PORT};sid=@{linkedService().SID};user id=@{linkedService().USER_NAME}",
+			"password": {
+				"type": "AzureKeyVaultSecret",
+				"store": {
+					"referenceName": "AzureKeyVault",
+					"type": "LinkedServiceReference"
+				},
+				"secretName": {
+					"value": "@linkedService().PASSWORD",
+					"type": "Expression"
+				}
+			}
+		},
+		"connectVia": {
+			"referenceName": "DSCGlobalIntegrationRuntime-OnPrem-WE",
+			"type": "IntegrationRuntimeReference"
+		}
+	}
+}

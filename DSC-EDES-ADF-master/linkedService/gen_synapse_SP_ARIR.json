@@ -1,0 +1,46 @@
+{
+	"name": "gen_synapse_SP_ARIR",
+	"properties": {
+		"parameters": {
+			"SP_SECRET": {
+				"type": "string",
+				"defaultValue": "DSC-MLEMEA-IT-IM-secret"
+			},
+			"SERVER": {
+				"type": "string",
+				"defaultValue": "syn-dpdhl-dls-uc-prod-marketing-sales-pldnsazr-ondemand.sql.azuresynapse.net"
+			},
+			"DB_NAME": {
+				"type": "string",
+				"defaultValue": "generictt"
+			},
+			"SP_ID": {
+				"type": "string",
+				"defaultValue": "0743345f-0536-48ac-b53e-2432e4d528de"
+			}
+		},
+		"annotations": [],
+		"type": "AzureSqlDW",
+		"typeProperties": {
+			"server": "@{linkedService().SERVER}",
+			"database": "@{linkedService().DB_NAME}",
+			"encrypt": "mandatory",
+			"trustServerCertificate": false,
+			"hostNameInCertificate": "",
+			"authenticationType": "ServicePrincipal",
+			"servicePrincipalId": "@{linkedService().SP_ID}",
+			"servicePrincipalCredential": {
+				"type": "AzureKeyVaultSecret",
+				"store": {
+					"referenceName": "AzureKeyVault",
+					"type": "LinkedServiceReference"
+				},
+				"secretName": {
+					"value": "@linkedService().SP_SECRET",
+					"type": "Expression"
+				}
+			},
+			"tenant": "cd99fef8-1cd3-4a2a-9bdf-15531181d65e"
+		}
+	}
+}

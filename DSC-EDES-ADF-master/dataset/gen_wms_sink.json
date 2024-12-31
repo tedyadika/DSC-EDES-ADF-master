@@ -1,0 +1,56 @@
+{
+	"name": "gen_wms_sink",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "gen_target",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"SOURCE_OBJECT_NAME": {
+				"type": "string",
+				"defaultValue": "ADRMST"
+			},
+			"target_instance": {
+				"type": "string",
+				"defaultValue": "CZCHE_2"
+			},
+			"target_storage_account": {
+				"type": "string",
+				"defaultValue": "https://dscemedessa0tpldnsazr.dfs.core.windows.net"
+			},
+			"mode": {
+				"type": "string",
+				"defaultValue": "PROD"
+			},
+			"System": {
+				"type": "string",
+				"defaultValue": "WMS"
+			},
+			"storage_container": {
+				"type": "string",
+				"defaultValue": "development"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_oracle/autoresolve_IR"
+		},
+		"annotations": [],
+		"type": "Parquet",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"folderPath": {
+					"value": "stage/@{dataset().System}/@{dataset().target_instance}/@{dataset().mode}/@{dataset().SOURCE_OBJECT_NAME}/current",
+					"type": "Expression"
+				},
+				"fileSystem": {
+					"value": "@{dataset().storage_container}",
+					"type": "Expression"
+				}
+			},
+			"compressionCodec": "snappy"
+		},
+		"schema": []
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

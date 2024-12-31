@@ -1,0 +1,32 @@
+{
+	"name": "trigger_daily_synapse_tnt",
+	"properties": {
+		"annotations": [],
+		"runtimeState": "Stopped",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "synapse_daily_multisystem",
+					"type": "PipelineReference"
+				},
+				"parameters": {
+					"instance_name": "tnt"
+				}
+			}
+		],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Day",
+				"interval": 1,
+				"startTime": "2024-09-23T15:28:00Z",
+				"timeZone": "UTC",
+				"schedule": {
+					"hours": [
+						2
+					]
+				}
+			}
+		}
+	}
+}

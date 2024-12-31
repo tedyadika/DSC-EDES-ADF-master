@@ -1,0 +1,71 @@
+{
+	"name": "sftp_binary_source_VM_SHIR_00",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "gen_sftp_source_VM_SHIR_00",
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"HOST": {
+					"value": "@dataset().HOST",
+					"type": "Expression"
+				},
+				"USER_NAME": {
+					"value": "@dataset().USERNAME",
+					"type": "Expression"
+				},
+				"PASSWORD_SECRET": {
+					"value": "@dataset().PASSWORD",
+					"type": "Expression"
+				},
+				"PORT": {
+					"value": "@dataset().PORT",
+					"type": "Expression"
+				}
+			}
+		},
+		"parameters": {
+			"folder_path": {
+				"type": "string",
+				"defaultValue": "/in/DataLake/SourceGYDailyReports/DailyInbound"
+			},
+			"HOST": {
+				"type": "string",
+				"defaultValue": "sftp3.dhl.com"
+			},
+			"USERNAME": {
+				"type": "string",
+				"defaultValue": "cqanwpcg"
+			},
+			"PASSWORD": {
+				"type": "string",
+				"defaultValue": "cqanwpcg-password"
+			},
+			"PORT": {
+				"type": "string",
+				"defaultValue": "4222"
+			},
+			"file_name": {
+				"type": "string",
+				"defaultValue": "*.xlsx"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_sftp/multi_SHIR"
+		},
+		"annotations": [],
+		"type": "Binary",
+		"typeProperties": {
+			"location": {
+				"type": "SftpLocation",
+				"fileName": {
+					"value": "@dataset().file_name",
+					"type": "Expression"
+				},
+				"folderPath": {
+					"value": "@dataset().folder_path",
+					"type": "Expression"
+				}
+			}
+		}
+	}
+}

@@ -1,0 +1,425 @@
+{
+	"name": "check_col_schema_prod_and_arch_SHARED_SHIR",
+	"properties": {
+		"activities": [
+			{
+				"name": "Check cols in prod",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Get PROD instance info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Get table list",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "OracleSource",
+						"oracleReaderQuery": {
+							"value": "select TABLE_NAME,  REGEXP_REPLACE(COLUMN_NAME, '\\W', '<>') AS FIXED_COLUMN_NAME\nfrom ALL_TAB_COLUMNS\nwhere OWNER = '@{activity('Get PROD instance info').output.firstRow.SOURCE_SCHEMA}'\nAND TABLE_NAME IN (@{activity('Get table list').output.value[0].ALL_TABLES})\nORDER BY TABLE_NAME, FIXED_COLUMN_NAME",
+							"type": "Expression"
+						},
+						"partitionOption": "None",
+						"convertDecimalToInteger": false,
+						"queryTimeout": "02:00:00"
+					},
+					"dataset": {
+						"referenceName": "gen_oracle_source_SHARED_SHIR",
+						"type": "DatasetReference",
+						"parameters": {
+							"SchemaName": "unused",
+							"TableName": "unused",
+							"HOST": {
+								"value": "@activity('Get PROD instance info').output.firstRow.HOST",
+								"type": "Expression"
+							},
+							"PORT": {
+								"value": "@activity('Get PROD instance info').output.firstRow.PORT",
+								"type": "Expression"
+							},
+							"SID": {
+								"value": "@activity('Get PROD instance info').output.firstRow.SID",
+								"type": "Expression"
+							},
+							"USER_NAME": {
+								"value": "@activity('Get PROD instance info').output.firstRow.USER_NAME",
+								"type": "Expression"
+							},
+							"PASSWORD": {
+								"value": "@activity('Get PROD instance info').output.firstRow.PASSWORD",
+								"type": "Expression"
+							}
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "Check cols in arch",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Get table list",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Get ARCH instance info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "OracleSource",
+						"oracleReaderQuery": {
+							"value": "select TABLE_NAME,   REGEXP_REPLACE(COLUMN_NAME, '\\W', '<>') AS FIXED_COLUMN_NAME\nfrom ALL_TAB_COLUMNS\nwhere OWNER = '@{activity('Get ARCH instance info').output.firstRow.SOURCE_SCHEMA}'\nAND TABLE_NAME IN (@{activity('Get table list').output.value[0].ALL_TABLES})\nORDER BY TABLE_NAME, FIXED_COLUMN_NAME",
+							"type": "Expression"
+						},
+						"partitionOption": "None",
+						"convertDecimalToInteger": false,
+						"queryTimeout": "02:00:00"
+					},
+					"dataset": {
+						"referenceName": "gen_oracle_source_SHARED_SHIR",
+						"type": "DatasetReference",
+						"parameters": {
+							"SchemaName": "unused",
+							"TableName": "unused",
+							"HOST": {
+								"value": "@activity('Get ARCH instance info').output.firstRow.HOST",
+								"type": "Expression"
+							},
+							"PORT": {
+								"value": "@activity('Get ARCH instance info').output.firstRow.PORT",
+								"type": "Expression"
+							},
+							"SID": {
+								"value": "@activity('Get ARCH instance info').output.firstRow.SID",
+								"type": "Expression"
+							},
+							"USER_NAME": {
+								"value": "@activity('Get ARCH instance info').output.firstRow.USER_NAME",
+								"type": "Expression"
+							},
+							"PASSWORD": {
+								"value": "@activity('Get ARCH instance info').output.firstRow.PASSWORD",
+								"type": "Expression"
+							}
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "Get cols in arch and not in prod",
+				"type": "Filter",
+				"dependsOn": [
+					{
+						"activity": "Check cols in prod",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Check cols in arch",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Check cols in arch').output.value",
+						"type": "Expression"
+					},
+					"condition": {
+						"value": "@not(contains(activity('Check cols in prod').output.value,item()))",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "Get cols in prod and not in arch",
+				"type": "Filter",
+				"dependsOn": [
+					{
+						"activity": "Check cols in arch",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Check cols in prod",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Check cols in prod').output.value",
+						"type": "Expression"
+					},
+					"condition": {
+						"value": "@not(contains(activity('Check cols in arch').output.value,item()))",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "If there is mismatch",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Get cols in arch and not in prod",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Get cols in prod and not in arch",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@or(greater(activity('Get cols in arch and not in prod').output.FilteredItemsCount,0), greater(activity('Get cols in prod and not in arch').output.FilteredItemsCount,0))",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Fail Pipeline",
+							"type": "Fail",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"message": {
+									"value": "There is mismatch with schema between arch and prod.\nCOLS IN PROD AND NOT IN ARCH:\n@{activity('Get cols in prod and not in arch').output.value}\nCOLS IN ARCH AND NOT IN PROD:\n@{activity('Get cols in arch and not in prod').output.value}",
+									"type": "Expression"
+								},
+								"errorCode": {
+									"value": "500",
+									"type": "Expression"
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Get table list",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "get source info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT '''' + STRING_AGG(SOURCE_OBJECT_NAME, ''',''')  WITHIN GROUP (ORDER BY SOURCE_OBJECT_NAME) + '''' AS ALL_TABLES \nFROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_TABLES \nWHERE [STAGE_SOURCE_ID] = '@{activity('get source info').output.firstRow.STAGE_SOURCE_ID}'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": {
+								"value": "@{pipeline().globalParameters.environment_db}",
+								"type": "Expression"
+							},
+							"table_name": "TBL_STAGE_TABLES"
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "get source info",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "select \nSTAGE_SOURCE_ID\n, SOURCE_NAME\n, SYSTEM_NAME\n, SYSTEM_DOMAIN\n, CONNECTOR\n, ARCHIVE_FLAG\nfrom @{pipeline().globalParameters.environment_db}.[TBL_STAGE_SOURCES] \nwhere 1=1\nAND ACTIVE_FLAG = 1 \nAND SOURCE_NAME = '@{pipeline().parameters.instance_name}';",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "@pipeline().globalParameters.environment_db",
+							"table_name": "ADF_WMS_CONFIG_INSTANCES"
+						}
+					}
+				}
+			},
+			{
+				"name": "Get PROD instance info",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "get source info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT * \nFROM \n@{pipeline().globalParameters.environment_db}.TBL_STAGE_ORACLE_CONNECTION_INFO \nWHERE 1=1\nAND [STAGE_SOURCE_ID] = '@{activity('get source info').output.firstRow.STAGE_SOURCE_ID}'\nAND [MODE]='PROD';",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": {
+								"value": "@pipeline().globalParameters.environment_db",
+								"type": "Expression"
+							},
+							"table_name": "TBL_STAGE_ORACLE_CONNECTION_INFO"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Get ARCH instance info",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "get source info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT * \nFROM \n@{pipeline().globalParameters.environment_db}.TBL_STAGE_ORACLE_CONNECTION_INFO \nWHERE 1=1\nAND [STAGE_SOURCE_ID]= '@{activity('get source info').output.firstRow.STAGE_SOURCE_ID}'\nAND '@{activity('get source info').output.firstRow.ARCHIVE_FLAG}' = 'True'\nAND [MODE]='ARCH';",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": {
+								"value": "@pipeline().globalParameters.environment_db",
+								"type": "Expression"
+							},
+							"table_name": "TBL_STAGE_ORACLE_CONNECTION_INFO"
+						}
+					},
+					"firstRowOnly": true
+				}
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "czpoh_4"
+			}
+		},
+		"variables": {
+			"cols_in_prod_only": {
+				"type": "Array",
+				"defaultValue": []
+			},
+			"cols_in_arch_only": {
+				"type": "Array",
+				"defaultValue": []
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_oracle/hardcoded_shared_SHIR/data_validation"
+		},
+		"annotations": [],
+		"lastPublishTime": "2023-10-05T09:02:44Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

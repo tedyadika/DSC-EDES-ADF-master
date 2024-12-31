@@ -1,0 +1,55 @@
+{
+	"name": "gen_mongo_sink",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "gen_target",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"object_name": {
+				"type": "string",
+				"defaultValue": "lanes"
+			},
+			"instance": {
+				"type": "string",
+				"defaultValue": "DCT"
+			},
+			"target_storage_account": {
+				"type": "string",
+				"defaultValue": "https://dscemedessa0tpldnsazr.dfs.core.windows.net"
+			},
+			"mode": {
+				"type": "string",
+				"defaultValue": "PROD"
+			},
+			"system_name_domain": {
+				"type": "string",
+				"defaultValue": "DCT_TMS"
+			},
+			"storage_container": {
+				"type": "string",
+				"defaultValue": "development"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_mongo/autoresolve_IR"
+		},
+		"annotations": [],
+		"type": "Json",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"folderPath": {
+					"value": "stage/@{dataset().system_name_domain}/@{dataset().instance}/@{dataset().mode}/@{dataset().object_name}/current",
+					"type": "Expression"
+				},
+				"fileSystem": {
+					"value": "@dataset().storage_container",
+					"type": "Expression"
+				}
+			}
+		},
+		"schema": {}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

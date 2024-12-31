@@ -1,0 +1,204 @@
+{
+	"name": "find_cid_fid_cols_SHARED_SHIR",
+	"properties": {
+		"activities": [
+			{
+				"name": "Get table list",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "get source info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT '''' + STRING_AGG(SOURCE_OBJECT_NAME, ''',''')  WITHIN GROUP (ORDER BY SOURCE_OBJECT_NAME) + '''' AS ALL_TABLES \nFROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_TABLES \nWHERE [STAGE_SOURCE_ID] = '@{activity('get source info').output.firstRow.STAGE_SOURCE_ID}'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": {
+								"value": "@{pipeline().globalParameters.environment_db}",
+								"type": "Expression"
+							},
+							"table_name": "TBL_STAGE_TABLES"
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "Check cols in prod",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Get table list",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Get PROD instance info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "OracleSource",
+						"oracleReaderQuery": {
+							"value": "with cols_info as (select TABLE_NAME, \n       LISTAGG(CASE WHEN COLUMN_NAME LIKE '%CLIENT_ID%' THEN COLUMN_NAME ELSE NULL END,'\",\"') AS COLUMN_VALUES_CLIENT,\n       LISTAGG(CASE WHEN COLUMN_NAME LIKE '%WH_ID%' THEN COLUMN_NAME ELSE NULL END,'\",\"') AS COLUMN_VALUES_WH\nfrom ALL_TAB_COLUMNS\nwhere OWNER = '@{activity('Get PROD instance info').output.firstRow.SOURCE_SCHEMA}'\nAND TABLE_NAME IN (@{activity('Get table list').output.value[0].ALL_TABLES})\nAND (COLUMN_NAME IN ('CLIENT_ID','PRT_CLIENT_ID','WH_ID','WH_ID_TMPL'))\nGROUP BY TABLE_NAME)\nSELECT TABLE_NAME, COLUMN_VALUES_CLIENT, COLUMN_VALUES_WH,\n 'UPDATE [test].[TBL_BRONZE_TABLES] \n SET CUSTOMER_CODE_LIST = ''{\"column_list\": ['|| CASE WHEN COLUMN_VALUES_CLIENT IS NOT NULL THEN '\"' ELSE '' END || COLUMN_VALUES_CLIENT || CASE WHEN COLUMN_VALUES_CLIENT IS NOT NULL THEN '\"' ELSE '' END ||']}'',\n FACILITY_CODE_LIST = ''{\"column_list\": ['|| CASE WHEN COLUMN_VALUES_WH IS NOT NULL THEN '\"' ELSE '' END || COLUMN_VALUES_WH || CASE WHEN COLUMN_VALUES_WH IS NOT NULL THEN '\"' ELSE '' END ||']}''\n WHERE SYSTEM_DOMAIN = ''@{activity('get source info').output.firstRow.SYSTEM_DOMAIN}'' AND SYSTEM_NAME = ''@{activity('get source info').output.firstRow.SYSTEM_NAME}'' AND SYSTEM_VERSION = @{activity('get source info').output.firstRow.SYSTEM_VERSION}\n AND INSTANCE_ID = @{activity('get source info').output.firstRow.STAGE_SOURCE_ID} \n AND SOURCE_OBJECT_NAME = ''' || TABLE_NAME || '''' AS SQL_QUERY\nFROM cols_info\nORDER BY TABLE_NAME",
+							"type": "Expression"
+						},
+						"partitionOption": "None",
+						"convertDecimalToInteger": false,
+						"queryTimeout": "02:00:00"
+					},
+					"dataset": {
+						"referenceName": "gen_oracle_source_SHARED_SHIR",
+						"type": "DatasetReference",
+						"parameters": {
+							"SchemaName": "unused",
+							"TableName": "unused",
+							"HOST": {
+								"value": "@activity('Get PROD instance info').output.firstRow.HOST",
+								"type": "Expression"
+							},
+							"PORT": {
+								"value": "@activity('Get PROD instance info').output.firstRow.PORT",
+								"type": "Expression"
+							},
+							"SID": {
+								"value": "@activity('Get PROD instance info').output.firstRow.SID",
+								"type": "Expression"
+							},
+							"USER_NAME": {
+								"value": "@activity('Get PROD instance info').output.firstRow.USER_NAME",
+								"type": "Expression"
+							},
+							"PASSWORD": {
+								"value": "@activity('Get PROD instance info').output.firstRow.PASSWORD",
+								"type": "Expression"
+							}
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "get source info",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "select \nSTAGE_SOURCE_ID\n, SOURCE_NAME\n, SYSTEM_NAME\n, SYSTEM_DOMAIN\n, SYSTEM_VERSION\n, CONNECTOR\n, ARCHIVE_FLAG\nfrom @{pipeline().globalParameters.environment_db}.[TBL_STAGE_SOURCES] \nwhere 1=1\nAND ACTIVE_FLAG = 1 \nAND SOURCE_NAME = '@{pipeline().parameters.instance_name}';",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "@pipeline().globalParameters.environment_db",
+							"table_name": "ADF_WMS_CONFIG_INSTANCES"
+						}
+					}
+				}
+			},
+			{
+				"name": "Get PROD instance info",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "get source info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT * \nFROM \n@{pipeline().globalParameters.environment_db}.TBL_STAGE_ORACLE_CONNECTION_INFO \nWHERE 1=1\nAND [STAGE_SOURCE_ID] = '@{activity('get source info').output.firstRow.STAGE_SOURCE_ID}'\nAND [MODE]='PROD';",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": {
+								"value": "@pipeline().globalParameters.environment_db",
+								"type": "Expression"
+							},
+							"table_name": "TBL_STAGE_ORACLE_CONNECTION_INFO"
+						}
+					},
+					"firstRowOnly": true
+				}
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "czpoh_4"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_oracle/hardcoded_shared_SHIR/data_validation"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-04-10T13:27:40Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

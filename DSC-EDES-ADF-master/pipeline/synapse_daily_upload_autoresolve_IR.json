@@ -1,0 +1,503 @@
+{
+	"name": "synapse_daily_upload_autoresolve_IR",
+	"properties": {
+		"activities": [
+			{
+				"name": "Get PROD data",
+				"description": "This loop can be set to rerun prod load N times, or until it runs successfully. The condition is set up in the setting of the until loop. Counters are set up and added to within the loop",
+				"type": "Until",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@or(\n    greater(\n        int(variables('count prod')),\n        1\n        ), \n    variables('prod succeeded'))",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Set prod succeeded to true",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Copy PROD tables",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "prod succeeded",
+								"value": true
+							}
+						},
+						{
+							"name": "Add to temp prod",
+							"description": "temporary variable, because ADF does not allow counter=counter+1 type assignments",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Copy PROD tables",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "temp prod",
+								"value": {
+									"value": "@{add(int(variables('count prod')),1)}",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Add to prod counter",
+							"description": "using the temp variable to add 1 to the actual prod counter",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Add to temp prod",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "count prod",
+								"value": {
+									"value": "@variables('temp prod')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Copy PROD tables",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "execute_pipeline",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"pipelineName": "synapse_upload_autoresolve_IR",
+									"pipelineParametersJson": {
+										"value": "{ \"instance_name\":  \"@{pipeline().parameters.instance_name}\",\n  \"system\": \"@{pipeline().parameters.system}\",\n  \"mode\":\"PROD\"\n  }",
+										"type": "Expression"
+									},
+									"checkStatusWaitTime": 300,
+									"waitForCompletion": "True"
+								}
+							}
+						},
+						{
+							"name": "Wait before rerun PROD",
+							"description": "Waits for a while, in case the reason for failure is transient",
+							"type": "Wait",
+							"dependsOn": [
+								{
+									"activity": "Copy PROD tables",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"waitTimeInSeconds": 900
+							}
+						}
+					],
+					"timeout": "7.00:00:00"
+				}
+			},
+			{
+				"name": "Continue only if PROD succeeded",
+				"description": "Throws an error if the Get Prod data loop ended because it reached the max number of repetitions, not because it succeeded",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Get PROD data",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@variables('prod succeeded')",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "PROD Fail",
+							"type": "Fail",
+							"dependsOn": [],
+							"userProperties": [
+								{
+									"name": "instance_name",
+									"value": "@pipeline().parameters.instance_name"
+								}
+							],
+							"typeProperties": {
+								"message": {
+									"value": "@concat('PROD load failed', variables('count arch'), 'times')",
+									"type": "Expression"
+								},
+								"errorCode": "501"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Get ARCH data",
+				"description": "This loop is set to rerun arch load N times, or until it runs successfully. The condition is set up in the setting of this 'until' loop. Counters are set up and added to within the loop itself",
+				"type": "Until",
+				"dependsOn": [
+					{
+						"activity": "Continue only if PROD succeeded",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@or(\n    greater(\n        int(variables('count arch')),\n        1\n    ), \n    variables('arch succeeded'))",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Set arch succeeded to true",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Copy ARCH tables",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "arch succeeded",
+								"value": true
+							}
+						},
+						{
+							"name": "Copy ARCH tables",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "execute_pipeline",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"pipelineName": {
+										"value": "synapse_upload_autoresolve_IR",
+										"type": "Expression"
+									},
+									"pipelineParametersJson": {
+										"value": "{ \"instance_name\":  \"@{pipeline().parameters.instance_name}\",\n  \"system\": \"@{pipeline().parameters.system}\",\n  \"mode\":\"ARCH\"\n  }\n",
+										"type": "Expression"
+									},
+									"checkStatusWaitTime": 300,
+									"waitForCompletion": "True"
+								}
+							}
+						},
+						{
+							"name": "Add to arch counter",
+							"description": "using the temp variable to add to the arch counter",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Add to temp arch",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "count arch",
+								"value": {
+									"value": "@variables('temp arch')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Add to temp arch",
+							"description": "temporary variable, because ADF does not allow counter=counter+1 type assignments",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Copy ARCH tables",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "temp arch",
+								"value": {
+									"value": "@{add(int(variables('count arch')),1)}",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Wait before rerun ARCH",
+							"description": "Waits for a while, in case the reason for failure is transient",
+							"type": "Wait",
+							"dependsOn": [
+								{
+									"activity": "Copy ARCH tables",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"waitTimeInSeconds": 900
+							}
+						}
+					],
+					"timeout": "7.00:00:00"
+				}
+			},
+			{
+				"name": "Continue only if ARCH succeeded",
+				"description": "Throws an error if the Get ARCH data loop reached the max number of loops without success.",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Get ARCH data",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@variables('arch succeeded')",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Fail ARCH",
+							"type": "Fail",
+							"dependsOn": [],
+							"userProperties": [
+								{
+									"name": "instance_name",
+									"value": "@pipeline().parameters.instance_name"
+								}
+							],
+							"typeProperties": {
+								"message": {
+									"value": "@concat('ARCH load failed', variables('count arch'), 'times')",
+									"type": "Expression"
+								},
+								"errorCode": "501"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Trigger synapse if last system",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Continue only if ARCH succeeded",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(pipeline().parameters.is_last_system, 'true')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Trigger synapse and archiving pipelines",
+							"description": "Triggers the synapse pipeline for this instance. At this point, synapse has all the data it needs in ADF stage",
+							"type": "Copy",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 1,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "DelimitedTextSource",
+									"storeSettings": {
+										"type": "AzureBlobFSReadSettings",
+										"recursive": true,
+										"enablePartitionDiscovery": false
+									},
+									"formatSettings": {
+										"type": "DelimitedTextReadSettings"
+									}
+								},
+								"sink": {
+									"type": "DelimitedTextSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "DelimitedTextWriteSettings",
+										"quoteAllText": true,
+										"fileExtension": ".txt"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "gen_trigger_csv",
+									"type": "DatasetReference",
+									"parameters": {
+										"storage_container": {
+											"value": "@pipeline().globalParameters.environment_container",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "trigger_synapse",
+									"type": "DatasetReference",
+									"parameters": {
+										"instance": {
+											"value": "@pipeline().parameters.instance_name",
+											"type": "Expression"
+										},
+										"storage_container": {
+											"value": "@pipeline().globalParameters.environment_container",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "tnt"
+			},
+			"system": {
+				"type": "string",
+				"defaultValue": "tnt_emea"
+			},
+			"is_last_system": {
+				"type": "string",
+				"defaultValue": "true"
+			}
+		},
+		"variables": {
+			"prod succeeded": {
+				"type": "Boolean",
+				"defaultValue": false
+			},
+			"count prod": {
+				"type": "String",
+				"defaultValue": "0"
+			},
+			"temp prod": {
+				"type": "String",
+				"defaultValue": "0"
+			},
+			"arch succeeded": {
+				"type": "Boolean",
+				"defaultValue": false
+			},
+			"count arch": {
+				"type": "String",
+				"defaultValue": "0"
+			},
+			"temp arch": {
+				"type": "String",
+				"defaultValue": "0"
+			},
+			"system_count": {
+				"type": "Integer"
+			},
+			"temp": {
+				"type": "Integer"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_synapse/main_autoresolve_IR"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-02-21T08:48:29Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

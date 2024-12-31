@@ -1,0 +1,29 @@
+{
+	"name": "shutdown_VM_01_trigger",
+	"properties": {
+		"description": "Checks to see if VM should be turned off",
+		"annotations": [],
+		"runtimeState": "Started",
+		"pipelines": [
+			{
+				"pipelineReference": {
+					"referenceName": "stop_pipeline_VM_IR",
+					"type": "PipelineReference"
+				},
+				"parameters": {
+					"ThisRunId": "1234",
+					"IR_alias": "VM_SHIR_01"
+				}
+			}
+		],
+		"type": "ScheduleTrigger",
+		"typeProperties": {
+			"recurrence": {
+				"frequency": "Hour",
+				"interval": 2,
+				"startTime": "2023-10-06T08:00:00",
+				"timeZone": "Central Europe Standard Time"
+			}
+		}
+	}
+}

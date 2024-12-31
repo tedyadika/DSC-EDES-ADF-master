@@ -1,0 +1,146 @@
+{
+	"Microsoft.DataFactory/factories": {
+		"properties": {
+			"globalParameters": {
+				"*": {
+					"value": "="
+				}
+			},
+			"globalConfigurations": {
+				"*": "="
+			},
+			"encryption": {
+				"*": "=",
+				"identity": {
+					"*": "="
+				}
+			}
+		},
+		"location": "=",
+		"identity": {
+			"type": "=",
+			"userAssignedIdentities": "="
+		}
+	},
+	 "Microsoft.DataFactory/factories/globalparameters": {
+        "properties": {
+                "*": { 
+                    "value": "=" 
+                }
+        }
+    },
+	"Microsoft.DataFactory/factories/pipelines": {
+		"properties": {
+			"parameters": {
+				"environment": {
+					"defaultValue": "=:environment:string"
+				},
+				"Synapse_Endpoint": {
+					"defaultValue": "=:synapse:string"
+				},
+				"environment_container": {
+					"defaultValue": "=:environment_container:string"
+				},
+				"environment_db": {
+					"defaultValue": "=::string"
+				},
+				"ADF_Endpoint": {
+					"defaultValue": "=:adf:string"
+				},
+				"spark_pool": {
+					"defaultValue": "=:spark_pool:string"
+				},
+				"transport_spark_pool": {
+					"defaultValue": "=:transport_spark_pool:string"
+				},
+				"azure_key_vault": {
+					"defaultValue": "=:akv:string"
+				},
+				"data_lake_path": {
+					"defaultValue": "=::string"
+				}
+			}
+		}
+	},
+	"Microsoft.DataFactory/factories/integrationRuntimes": {
+		"properties": {
+			"typeProperties": {
+				"linkedInfo": {
+					"resourceId": "=:resourceId:string"
+				}
+			}
+		}
+	},
+	"Microsoft.DataFactory/factories/triggers": {
+		"properties": {
+			"typeProperties": {
+				"scope": "=:scope:string",
+				"blobPathBeginsWith": "=:blobPathBeginsWith:string"
+			},
+			"pipelines": [
+				{
+					"parameters": {
+						"environment": "=:environment:string",
+						"environment_db": "=:environment_db:string",
+						"environment_container": "=:environment_container:string"
+					}
+				}
+			]
+		}
+	},
+	"Microsoft.DataFactory/factories/linkedServices": {
+		"AzureBlobFS": {
+			"properties": {
+				"typeProperties": {
+					"url": "|:url:secureString"
+				}
+			}
+		},
+		"AzureKeyVault": {
+			"properties": {
+				"typeProperties": {
+					"baseUrl": "|:baseUrl:secureString"
+				}
+			}
+		},
+		"BlobStorage": {
+			"properties": {
+				"typeProperties": {
+					"connectionString": "|:url:secureString"
+				}
+			}
+		},
+		"AzureSqlDW": {
+			"properties": {
+				"typeProperties": {
+					"connectionString": "|:url:secureString"
+				}
+			}
+		}
+	},
+	"Microsoft.DataFactory/factories/datasets": {
+		"Binary": {
+			"properties": {
+				"typeProperties": {
+					"location": {
+						"container": "=:container:string"
+					}
+				}
+			}
+		},
+		"DelimitedText": {
+			"properties": {
+				"typeProperties": {
+					"location": {
+						"fileSystem": "=:fileSystem:string"
+					}
+				}
+			}
+		}
+	},
+	"Microsoft.DataFactory/factories/managedVirtualNetworks/managedPrivateEndpoints": {
+		"properties": {
+			"*": "="
+		}
+	}
+}

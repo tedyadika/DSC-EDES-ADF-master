@@ -1,0 +1,13 @@
+{
+	"name": "DSCGlobalIntegrationRuntime-Azure-WE",
+	"properties": {
+		"type": "SelfHosted",
+		"description": "DHL Supply Chain Global Integration Runtime - Azure Environment WE Data Center",
+		"typeProperties": {
+			"linkedInfo": {
+				"resourceId": "/subscriptions/8b20e38c-72fb-4030-a702-128e713479ca/resourcegroups/DSCAzureBIIntegration/providers/Microsoft.DataFactory/factories/DSCIntegrationWEadf01/integrationruntimes/DSCGlobalIntegrationRuntime-AzureTest-WE",
+				"authorizationType": "Rbac"
+			}
+		}
+	}
+}

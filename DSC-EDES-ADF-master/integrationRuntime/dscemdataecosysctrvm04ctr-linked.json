@@ -1,0 +1,12 @@
+{
+	"name": "dscemdataecosysctrvm04ctr-linked",
+	"properties": {
+		"type": "SelfHosted",
+		"typeProperties": {
+			"linkedInfo": {
+				"resourceId": "/subscriptions/8b20e38c-72fb-4030-a702-128e713479ca/resourcegroups/DscEMEADataEcoSysCtr/providers/Microsoft.DataFactory/factories/dscemedesadf0cpldnsazr/integrationruntimes/dscemdataecosysctrvm04ctr",
+				"authorizationType": "Rbac"
+			}
+		}
+	}
+}

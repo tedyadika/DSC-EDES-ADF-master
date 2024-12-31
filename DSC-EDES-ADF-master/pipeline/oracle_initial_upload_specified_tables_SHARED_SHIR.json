@@ -1,0 +1,990 @@
+{
+	"name": "oracle_initial_upload_specified_tables_SHARED_SHIR",
+	"properties": {
+		"description": "This pipeline does not delete old data - it is meant truly only for the very first load of a specific table",
+		"activities": [
+			{
+				"name": "Get table info",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Get stage source ID",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT * FROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_TABLES \nWHERE [STAGE_SOURCE_ID]='@{activity('Get stage source ID').output.firstRow.STAGE_SOURCE_ID}' \nAND SOURCE_OBJECT_NAME IN (@{pipeline().parameters.tables})\nORDER BY LOAD_ORDER",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "ADF_WMS_CONFIG_INSTANCES"
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "Get ARCH instance info",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Get stage source ID",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT * FROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_ORACLE_CONNECTION_INFO WHERE [STAGE_SOURCE_ID]='@{activity('Get stage source ID').output.firstRow.STAGE_SOURCE_ID}' AND MODE='ARCH'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "ADF_WMS_CONFIG_INSTANCES"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Get PROD instance info",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Get stage source ID",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT * FROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_ORACLE_CONNECTION_INFO WHERE [STAGE_SOURCE_ID]='@{activity('Get stage source ID').output.firstRow.STAGE_SOURCE_ID}' AND MODE='PROD'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "ADF_WMS_CONFIG_INSTANCES"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Copy each table from production",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Get table info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Get PROD instance info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Get table info').output.value",
+						"type": "Expression"
+					},
+					"batchCount": 20,
+					"activities": [
+						{
+							"name": "If prod table is partitioned",
+							"type": "IfCondition",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"expression": {
+									"value": "@equals(coalesce(item().PARTITION_COL_NAME_ARCH,'N/A'),'N/A')",
+									"type": "Expression"
+								},
+								"ifFalseActivities": [
+									{
+										"name": "Copy partitioned data from prod",
+										"type": "Copy",
+										"dependsOn": [
+											{
+												"activity": "Delete from archive",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "7.00:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [
+											{
+												"name": "Table_name",
+												"value": "@{item().SOURCE_OBJECT_NAME}"
+											},
+											{
+												"name": "Source",
+												"value": "@{activity('Get prod instance info').output.firstRow.SOURCE_SCHEMA}.@{item().SOURCE_OBJECT_NAME}"
+											},
+											{
+												"name": "Destination",
+												"value": "development/adf_stage/@{'WMS'}/@{pipeline().parameters.instance_name}/@{'PROD'}/@{item().SOURCE_OBJECT_NAME}/current/"
+											}
+										],
+										"typeProperties": {
+											"source": {
+												"type": "OracleSource",
+												"oracleReaderQuery": {
+													"value": "SELECT * FROM @{activity('Get prod instance info').output.firstRow.SOURCE_SCHEMA}.@{item().SOURCE_OBJECT_NAME}\nWHERE ?AdfRangePartitionColumnName <= ?AdfRangePartitionUpbound \nAND ?AdfRangePartitionColumnName >= ?AdfRangePartitionLowbound",
+													"type": "Expression"
+												},
+												"partitionOption": "DynamicRange",
+												"partitionSettings": {
+													"partitionColumnName": {
+														"value": "@{item().PARTITION_COL_NAME_PROD}",
+														"type": "Expression"
+													},
+													"partitionUpperBound": {
+														"value": "@{item().UPPER_BOUND}",
+														"type": "Expression"
+													},
+													"partitionLowerBound": {
+														"value": "@{item().LOWER_BOUND}",
+														"type": "Expression"
+													}
+												},
+												"convertDecimalToInteger": false,
+												"queryTimeout": "02:00:00"
+											},
+											"sink": {
+												"type": "ParquetSink",
+												"storeSettings": {
+													"type": "AzureBlobFSWriteSettings"
+												},
+												"formatSettings": {
+													"type": "ParquetWriteSettings"
+												}
+											},
+											"enableStaging": false,
+											"translator": {
+												"type": "TabularTranslator",
+												"typeConversion": true,
+												"typeConversionSettings": {
+													"allowDataTruncation": true,
+													"treatBooleanAsNumber": false
+												}
+											}
+										},
+										"inputs": [
+											{
+												"referenceName": "gen_oracle_source_SHARED_SHIR",
+												"type": "DatasetReference",
+												"parameters": {
+													"SchemaName": {
+														"value": "@activity('Get PROD instance info').output.firstRow.SOURCE_SCHEMA",
+														"type": "Expression"
+													},
+													"TableName": {
+														"value": "@item().SOURCE_OBJECT_NAME",
+														"type": "Expression"
+													},
+													"HOST": {
+														"value": "@activity('Get PROD instance info').output.firstRow.HOST",
+														"type": "Expression"
+													},
+													"PORT": {
+														"value": "@activity('Get PROD instance info').output.firstRow.PORT",
+														"type": "Expression"
+													},
+													"SID": {
+														"value": "@activity('Get PROD instance info').output.firstRow.SID",
+														"type": "Expression"
+													},
+													"USER_NAME": {
+														"value": "@activity('Get PROD instance info').output.firstRow.USER_NAME",
+														"type": "Expression"
+													},
+													"PASSWORD": {
+														"value": "@activity('Get PROD instance info').output.firstRow.PASSWORD",
+														"type": "Expression"
+													}
+												}
+											}
+										],
+										"outputs": [
+											{
+												"referenceName": "gen_wms_sink",
+												"type": "DatasetReference",
+												"parameters": {
+													"SOURCE_OBJECT_NAME": "@item().SOURCE_OBJECT_NAME",
+													"target_instance": {
+														"value": "@pipeline().parameters.instance_name",
+														"type": "Expression"
+													},
+													"target_storage_account": {
+														"value": "@activity('Get PROD instance info').output.firstRow.TARGET_STORAGE_ACCOUNT",
+														"type": "Expression"
+													},
+													"mode": {
+														"value": "@activity('Get PROD instance info').output.firstRow.MODE",
+														"type": "Expression"
+													},
+													"System": {
+														"value": "@concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN)",
+														"type": "Expression"
+													},
+													"storage_container": {
+														"value": "@pipeline().globalParameters.environment_container",
+														"type": "Expression"
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "Delete from archive",
+										"type": "Delete",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "7.00:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"dataset": {
+												"referenceName": "gen_wms_sink",
+												"type": "DatasetReference",
+												"parameters": {
+													"SOURCE_OBJECT_NAME": "@item().SOURCE_OBJECT_NAME",
+													"target_instance": {
+														"value": "@pipeline().parameters.instance_name",
+														"type": "Expression"
+													},
+													"target_storage_account": {
+														"value": "@activity('Get PROD instance info').output.firstRow.TARGET_STORAGE_ACCOUNT",
+														"type": "Expression"
+													},
+													"mode": "PROD",
+													"System": {
+														"value": "@concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN)",
+														"type": "Expression"
+													},
+													"storage_container": {
+														"value": "@pipeline().globalParameters.environment_container",
+														"type": "Expression"
+													}
+												}
+											},
+											"enableLogging": false,
+											"storeSettings": {
+												"type": "AzureBlobFSReadSettings",
+												"recursive": true,
+												"enablePartitionDiscovery": false
+											}
+										}
+									}
+								],
+								"ifTrueActivities": [
+									{
+										"name": "Copy unpartitioned data from prod",
+										"type": "Copy",
+										"dependsOn": [
+											{
+												"activity": "Delete from prod",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "7.00:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [
+											{
+												"name": "Table_name",
+												"value": "@{item().SOURCE_OBJECT_NAME}"
+											},
+											{
+												"name": "Source",
+												"value": "@{activity('Get prod instance info').output.firstRow.SOURCE_SCHEMA}.@{item().SOURCE_OBJECT_NAME}"
+											},
+											{
+												"name": "Destination",
+												"value": "development/adf_stage/@{'WMS'}/@{pipeline().parameters.instance_name}/@{'PROD'}/@{item().SOURCE_OBJECT_NAME}/current/"
+											}
+										],
+										"typeProperties": {
+											"source": {
+												"type": "OracleSource",
+												"partitionOption": "None",
+												"queryTimeout": "02:00:00"
+											},
+											"sink": {
+												"type": "ParquetSink",
+												"storeSettings": {
+													"type": "AzureBlobFSWriteSettings"
+												},
+												"formatSettings": {
+													"type": "ParquetWriteSettings"
+												}
+											},
+											"enableStaging": false,
+											"translator": {
+												"type": "TabularTranslator",
+												"typeConversion": true,
+												"typeConversionSettings": {
+													"allowDataTruncation": true,
+													"treatBooleanAsNumber": false
+												}
+											}
+										},
+										"inputs": [
+											{
+												"referenceName": "gen_oracle_source_SHARED_SHIR",
+												"type": "DatasetReference",
+												"parameters": {
+													"SchemaName": {
+														"value": "@activity('Get PROD instance info').output.firstRow.SOURCE_SCHEMA",
+														"type": "Expression"
+													},
+													"TableName": {
+														"value": "@item().SOURCE_OBJECT_NAME",
+														"type": "Expression"
+													},
+													"HOST": {
+														"value": "@activity('Get PROD instance info').output.firstRow.HOST",
+														"type": "Expression"
+													},
+													"PORT": {
+														"value": "@activity('Get PROD instance info').output.firstRow.PORT",
+														"type": "Expression"
+													},
+													"SID": {
+														"value": "@activity('Get PROD instance info').output.firstRow.SID",
+														"type": "Expression"
+													},
+													"USER_NAME": {
+														"value": "@activity('Get PROD instance info').output.firstRow.USER_NAME",
+														"type": "Expression"
+													},
+													"PASSWORD": {
+														"value": "@activity('Get PROD instance info').output.firstRow.PASSWORD",
+														"type": "Expression"
+													}
+												}
+											}
+										],
+										"outputs": [
+											{
+												"referenceName": "gen_wms_sink",
+												"type": "DatasetReference",
+												"parameters": {
+													"SOURCE_OBJECT_NAME": "@item().SOURCE_OBJECT_NAME",
+													"target_instance": {
+														"value": "@pipeline().parameters.instance_name",
+														"type": "Expression"
+													},
+													"target_storage_account": {
+														"value": "@activity('Get PROD instance info').output.firstRow.TARGET_STORAGE_ACCOUNT",
+														"type": "Expression"
+													},
+													"mode": {
+														"value": "@activity('Get PROD instance info').output.firstRow.MODE",
+														"type": "Expression"
+													},
+													"System": {
+														"value": "@concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN)",
+														"type": "Expression"
+													},
+													"storage_container": {
+														"value": "@pipeline().globalParameters.environment_container",
+														"type": "Expression"
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "Delete from prod",
+										"type": "Delete",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "7.00:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"dataset": {
+												"referenceName": "gen_wms_sink",
+												"type": "DatasetReference",
+												"parameters": {
+													"SOURCE_OBJECT_NAME": "@item().SOURCE_OBJECT_NAME",
+													"target_instance": {
+														"value": "@pipeline().parameters.instance_name",
+														"type": "Expression"
+													},
+													"target_storage_account": {
+														"value": "@activity('Get PROD instance info').output.firstRow.TARGET_STORAGE_ACCOUNT",
+														"type": "Expression"
+													},
+													"mode": "PROD",
+													"System": {
+														"value": "@concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN)",
+														"type": "Expression"
+													},
+													"storage_container": {
+														"value": "@pipeline().globalParameters.environment_container",
+														"type": "Expression"
+													}
+												}
+											},
+											"enableLogging": false,
+											"storeSettings": {
+												"type": "AzureBlobFSReadSettings",
+												"recursive": true,
+												"enablePartitionDiscovery": false
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Copy each table from archive",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Get ARCH instance info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Copy each table from production",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Get table info').output.value",
+						"type": "Expression"
+					},
+					"batchCount": 20,
+					"activities": [
+						{
+							"name": "If arch table is partitioned",
+							"type": "IfCondition",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"expression": {
+									"value": "@equals(coalesce(item().PARTITION_COL_NAME_ARCH,'N/A'),'N/A')",
+									"type": "Expression"
+								},
+								"ifFalseActivities": [
+									{
+										"name": "Copy partitioned data from archive",
+										"type": "Copy",
+										"dependsOn": [
+											{
+												"activity": "Delete ARCH prev load",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "7.00:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [
+											{
+												"name": "TableName",
+												"value": "@{item().SOURCE_OBJECT_NAME}"
+											},
+											{
+												"name": "Source",
+												"value": "@{activity('Get arch instance info').output.firstRow.SOURCE_SCHEMA}.@{item().SOURCE_OBJECT_NAME}"
+											},
+											{
+												"name": "Destination",
+												"value": "development/adf_stage/@{'WMS'}/@{pipeline().parameters.instance_name}/@{'ARCH'}/@{item().SOURCE_OBJECT_NAME}/current/"
+											}
+										],
+										"typeProperties": {
+											"source": {
+												"type": "OracleSource",
+												"oracleReaderQuery": {
+													"value": "SELECT * FROM @{activity('Get arch instance info').output.firstRow.SOURCE_SCHEMA}.@{item().SOURCE_OBJECT_NAME} WHERE ?AdfRangePartitionColumnName <= ?AdfRangePartitionUpbound AND ?AdfRangePartitionColumnName >= ?AdfRangePartitionLowbound",
+													"type": "Expression"
+												},
+												"partitionOption": "DynamicRange",
+												"partitionSettings": {
+													"partitionColumnName": {
+														"value": "@{item().PARTITION_COL_NAME_ARCH}",
+														"type": "Expression"
+													},
+													"partitionUpperBound": {
+														"value": "@{item().UPPER_BOUND}",
+														"type": "Expression"
+													},
+													"partitionLowerBound": {
+														"value": "@{item().LOWER_BOUND}",
+														"type": "Expression"
+													}
+												},
+												"convertDecimalToInteger": false,
+												"queryTimeout": "02:00:00"
+											},
+											"sink": {
+												"type": "ParquetSink",
+												"storeSettings": {
+													"type": "AzureBlobFSWriteSettings"
+												},
+												"formatSettings": {
+													"type": "ParquetWriteSettings"
+												}
+											},
+											"enableStaging": false,
+											"translator": {
+												"type": "TabularTranslator",
+												"typeConversion": true,
+												"typeConversionSettings": {
+													"allowDataTruncation": true,
+													"treatBooleanAsNumber": false
+												}
+											}
+										},
+										"inputs": [
+											{
+												"referenceName": "gen_oracle_source_SHARED_SHIR",
+												"type": "DatasetReference",
+												"parameters": {
+													"SchemaName": {
+														"value": "@activity('Get Arch instance info').output.firstRow.SOURCE_SCHEMA",
+														"type": "Expression"
+													},
+													"TableName": {
+														"value": "@item().SOURCE_OBJECT_NAME",
+														"type": "Expression"
+													},
+													"HOST": {
+														"value": "@activity('Get Arch instance info').output.firstRow.HOST",
+														"type": "Expression"
+													},
+													"PORT": {
+														"value": "@activity('Get Arch instance info').output.firstRow.PORT",
+														"type": "Expression"
+													},
+													"SID": {
+														"value": "@activity('Get Arch instance info').output.firstRow.SID",
+														"type": "Expression"
+													},
+													"USER_NAME": {
+														"value": "@activity('Get Arch instance info').output.firstRow.USER_NAME",
+														"type": "Expression"
+													},
+													"PASSWORD": {
+														"value": "@activity('Get Arch instance info').output.firstRow.PASSWORD",
+														"type": "Expression"
+													}
+												}
+											}
+										],
+										"outputs": [
+											{
+												"referenceName": "gen_wms_sink",
+												"type": "DatasetReference",
+												"parameters": {
+													"SOURCE_OBJECT_NAME": {
+														"value": "@item().SOURCE_OBJECT_NAME",
+														"type": "Expression"
+													},
+													"target_instance": {
+														"value": "@pipeline().parameters.instance_name",
+														"type": "Expression"
+													},
+													"target_storage_account": {
+														"value": "@activity('Get ARCH instance info').output.firstRow.TARGET_STORAGE_ACCOUNT",
+														"type": "Expression"
+													},
+													"mode": {
+														"value": "@activity('Get ARCH instance info').output.firstRow.MODE",
+														"type": "Expression"
+													},
+													"System": {
+														"value": "@concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN)",
+														"type": "Expression"
+													},
+													"storage_container": {
+														"value": "@pipeline().globalParameters.environment_container",
+														"type": "Expression"
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "Delete ARCH prev load",
+										"type": "Delete",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "7.00:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"dataset": {
+												"referenceName": "gen_wms_sink",
+												"type": "DatasetReference",
+												"parameters": {
+													"SOURCE_OBJECT_NAME": "@item().SOURCE_OBJECT_NAME",
+													"target_instance": {
+														"value": "@pipeline().parameters.instance_name",
+														"type": "Expression"
+													},
+													"target_storage_account": {
+														"value": "@activity('Get ARCH instance info').output.firstRow.TARGET_STORAGE_ACCOUNT",
+														"type": "Expression"
+													},
+													"mode": "ARCH",
+													"System": {
+														"value": "@concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN)",
+														"type": "Expression"
+													},
+													"storage_container": {
+														"value": "@pipeline().globalParameters.environment_container",
+														"type": "Expression"
+													}
+												}
+											},
+											"enableLogging": false,
+											"storeSettings": {
+												"type": "AzureBlobFSReadSettings",
+												"recursive": true,
+												"enablePartitionDiscovery": false
+											}
+										}
+									}
+								],
+								"ifTrueActivities": [
+									{
+										"name": "Copy unpartitioned data from archive",
+										"type": "Copy",
+										"dependsOn": [
+											{
+												"activity": "Delete from arch",
+												"dependencyConditions": [
+													"Succeeded"
+												]
+											}
+										],
+										"policy": {
+											"timeout": "7.00:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [
+											{
+												"name": "TableName",
+												"value": "@{item().SOURCE_OBJECT_NAME}"
+											},
+											{
+												"name": "Source",
+												"value": "@{activity('Get arch instance info').output.firstRow.SOURCE_SCHEMA}.@{item().SOURCE_OBJECT_NAME}"
+											},
+											{
+												"name": "Destination",
+												"value": "development/adf_stage/@{'WMS'}/@{pipeline().parameters.instance_name}/@{'ARCH'}/@{item().SOURCE_OBJECT_NAME}/current/"
+											}
+										],
+										"typeProperties": {
+											"source": {
+												"type": "OracleSource",
+												"partitionOption": "None",
+												"queryTimeout": "02:00:00"
+											},
+											"sink": {
+												"type": "ParquetSink",
+												"storeSettings": {
+													"type": "AzureBlobFSWriteSettings"
+												},
+												"formatSettings": {
+													"type": "ParquetWriteSettings"
+												}
+											},
+											"enableStaging": false,
+											"translator": {
+												"type": "TabularTranslator",
+												"typeConversion": true,
+												"typeConversionSettings": {
+													"allowDataTruncation": true,
+													"treatBooleanAsNumber": false
+												}
+											}
+										},
+										"inputs": [
+											{
+												"referenceName": "gen_oracle_source_SHARED_SHIR",
+												"type": "DatasetReference",
+												"parameters": {
+													"SchemaName": {
+														"value": "@activity('Get Arch instance info').output.firstRow.SOURCE_SCHEMA",
+														"type": "Expression"
+													},
+													"TableName": {
+														"value": "@item().SOURCE_OBJECT_NAME",
+														"type": "Expression"
+													},
+													"HOST": {
+														"value": "@activity('Get Arch instance info').output.firstRow.HOST",
+														"type": "Expression"
+													},
+													"PORT": {
+														"value": "@activity('Get Arch instance info').output.firstRow.PORT",
+														"type": "Expression"
+													},
+													"SID": {
+														"value": "@activity('Get Arch instance info').output.firstRow.SID",
+														"type": "Expression"
+													},
+													"USER_NAME": {
+														"value": "@activity('Get Arch instance info').output.firstRow.USER_NAME",
+														"type": "Expression"
+													},
+													"PASSWORD": {
+														"value": "@activity('Get Arch instance info').output.firstRow.PASSWORD",
+														"type": "Expression"
+													}
+												}
+											}
+										],
+										"outputs": [
+											{
+												"referenceName": "gen_wms_sink",
+												"type": "DatasetReference",
+												"parameters": {
+													"SOURCE_OBJECT_NAME": "@item().SOURCE_OBJECT_NAME",
+													"target_instance": {
+														"value": "@pipeline().parameters.instance_name",
+														"type": "Expression"
+													},
+													"target_storage_account": {
+														"value": "@activity('Get ARCH instance info').output.firstRow.TARGET_STORAGE_ACCOUNT",
+														"type": "Expression"
+													},
+													"mode": {
+														"value": "@activity('Get ARCH instance info').output.firstRow.MODE",
+														"type": "Expression"
+													},
+													"System": {
+														"value": "@concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN)",
+														"type": "Expression"
+													},
+													"storage_container": {
+														"value": "@pipeline().globalParameters.environment_container",
+														"type": "Expression"
+													}
+												}
+											}
+										]
+									},
+									{
+										"name": "Delete from arch",
+										"type": "Delete",
+										"dependsOn": [],
+										"policy": {
+											"timeout": "7.00:00:00",
+											"retry": 0,
+											"retryIntervalInSeconds": 30,
+											"secureOutput": false,
+											"secureInput": false
+										},
+										"userProperties": [],
+										"typeProperties": {
+											"dataset": {
+												"referenceName": "gen_wms_sink",
+												"type": "DatasetReference",
+												"parameters": {
+													"SOURCE_OBJECT_NAME": {
+														"value": "@item().SOURCE_OBJECT_NAME",
+														"type": "Expression"
+													},
+													"target_instance": {
+														"value": "@pipeline().parameters.instance_name",
+														"type": "Expression"
+													},
+													"target_storage_account": {
+														"value": "@activity('Get ARCH instance info').output.firstRow.TARGET_STORAGE_ACCOUNT",
+														"type": "Expression"
+													},
+													"mode": "ARCH",
+													"System": {
+														"value": "@concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN)",
+														"type": "Expression"
+													},
+													"storage_container": {
+														"value": "@pipeline().globalParameters.environment_container",
+														"type": "Expression"
+													}
+												}
+											},
+											"enableLogging": false,
+											"storeSettings": {
+												"type": "AzureBlobFSReadSettings",
+												"recursive": true,
+												"enablePartitionDiscovery": false
+											}
+										}
+									}
+								]
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Get stage source ID",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT STAGE_SOURCE_ID,\n\tSYSTEM_NAME,\n\tLOWER(SYSTEM_DOMAIN) SYSTEM_DOMAIN\n FROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_SOURCES WHERE [SOURCE_NAME]='@{pipeline().parameters.instance_name}' AND SYSTEM_NAME='@{pipeline().parameters.system}'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "ADF_WMS_CONFIG_INSTANCES"
+						}
+					},
+					"firstRowOnly": true
+				}
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "czpoh_4"
+			},
+			"tables": {
+				"type": "string",
+				"defaultValue": "'CLIENT','CLIENT_WH','WH'"
+			},
+			"system": {
+				"type": "string",
+				"defaultValue": "blueyonder"
+			}
+		},
+		"variables": {
+			"test": {
+				"type": "String"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_oracle/hardcoded_shared_SHIR/initial_upload"
+		},
+		"annotations": [],
+		"lastPublishTime": "2023-12-15T12:49:44Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

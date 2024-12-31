@@ -1,0 +1,242 @@
+{
+	"name": "execute_pipeline",
+	"properties": {
+		"description": "This pipeline was developed to overcome a shortcoming of the Execute Pipeline activity - that the pipeline to be triggered must be hard-coded into the activity. You can use it for metadata-driven approaches like iterating over a list of pipeline names. Needed especially for multiSHIR approach.",
+		"activities": [
+			{
+				"name": "Start pipeline run",
+				"description": "Use Rest API to start pipeline run in ADF.",
+				"type": "WebActivity",
+				"dependsOn": [
+					{
+						"activity": "Force error if nested execution",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"method": "POST",
+					"url": {
+						"value": "https://management.azure.com/subscriptions/@{pipeline().globalParameters.subscriptionId}/resourceGroups/@{pipeline().globalParameters.resourceGroupName}/providers/Microsoft.DataFactory/factories/@{pipeline().DataFactory}/pipelines/@{pipeline().parameters.pipelineName}/createRun?api-version=2018-06-01",
+						"type": "Expression"
+					},
+					"body": {
+						"value": "@json(string(pipeline().parameters.pipelineParametersJson))",
+						"type": "Expression"
+					},
+					"authentication": {
+						"type": "MSI",
+						"resource": "https://management.azure.com/"
+					}
+				}
+			},
+			{
+				"name": "Force error if nested execution",
+				"description": "Pipeline fails if you try to trigger it with execute_pipeline as pipelineName parameter value. This prevent recursive execution.",
+				"type": "IfCondition",
+				"dependsOn": [],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(pipeline().parameters.pipelineName,'execute_pipeline')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Pipeline nested execution failed",
+							"type": "Fail",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"message": {
+									"value": "This pipeline should not be used to run execute_pipeline recursively. This action might cause infinite loop if the default value for pipelineName was set to execute_pipeline.",
+									"type": "Expression"
+								},
+								"errorCode": "500"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Force error if pipeline failed",
+				"description": "Pipeline fails, if the pipelines is set to wai for completion and the status returned after checks is not equal to Succeeded.",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Check pipeline status",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@and(not(equals(variables('runStatus'),'Succeeded')),equals(pipeline().parameters.waitForCompletion,'True'))",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Pipeline failed",
+							"type": "Fail",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"message": {
+									"value": "Run @{activity('Start pipeline run').output.runId} of pipeline @{pipeline().parameters.pipelineName} with parameters \n@{pipeline().parameters.pipelineParametersJson} failed. Details of the error can be found in pipeline monitoring tab using runId.",
+									"type": "Expression"
+								},
+								"errorCode": "500"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Check pipeline status",
+				"description": "The until activity checks the status if the parameter waitForCompletion is set to True.",
+				"type": "Until",
+				"dependsOn": [
+					{
+						"activity": "Start pipeline run",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@and(contains(variables('completionStatusList'),variables('runStatus')),equals(pipeline().parameters.waitForCompletion,'True'))",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Wait to check status",
+							"type": "Wait",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"waitTimeInSeconds": {
+									"value": "@pipeline().parameters.checkStatusWaitTime",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Check pipeline run status",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Wait to check status",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"method": "GET",
+								"url": {
+									"value": "https://management.azure.com/subscriptions/@{pipeline().globalParameters.subscriptionId}/resourceGroups/@{pipeline().globalParameters.resourceGroupName}/providers/Microsoft.DataFactory/factories/@{pipeline().DataFactory}/pipelineruns/@{activity('Start pipeline run').output.runId}?api-version=2018-06-01",
+									"type": "Expression"
+								},
+								"body": {
+									"value": "@json('{}')",
+									"type": "Expression"
+								},
+								"authentication": {
+									"type": "MSI",
+									"resource": "https://management.azure.com/"
+								}
+							}
+						},
+						{
+							"name": "Update runStatus",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Check pipeline run status",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "runStatus",
+								"value": {
+									"value": "@activity('Check pipeline run status').output.status",
+									"type": "Expression"
+								}
+							}
+						}
+					],
+					"timeout": "0.23:00:30"
+				}
+			}
+		],
+		"parameters": {
+			"pipelineName": {
+				"type": "string",
+				"defaultValue": "api_daily_upload_SHARED_SHIR"
+			},
+			"pipelineParametersJson": {
+				"type": "string",
+				"defaultValue": {
+					"instance_name": "xfunctional",
+					"environment_container": "development",
+					"environment_db": "test",
+					"mode": "PROD"
+				}
+			},
+			"checkStatusWaitTime": {
+				"type": "int",
+				"defaultValue": 10
+			},
+			"waitForCompletion": {
+				"type": "string",
+				"defaultValue": "True"
+			}
+		},
+		"variables": {
+			"runStatus": {
+				"type": "String",
+				"defaultValue": "Not Started"
+			},
+			"completionStatusList": {
+				"type": "Array",
+				"defaultValue": [
+					"Succeeded",
+					"Failed",
+					"Cancelled"
+				]
+			}
+		},
+		"folder": {
+			"name": "development/utility"
+		},
+		"annotations": []
+	}
+}

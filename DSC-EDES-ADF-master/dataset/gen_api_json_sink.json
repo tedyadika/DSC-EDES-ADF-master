@@ -1,0 +1,51 @@
+{
+	"name": "gen_api_json_sink",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "gen_target",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"storage_container": {
+				"type": "string",
+				"defaultValue": "development"
+			},
+			"mode": {
+				"type": "string",
+				"defaultValue": "PROD"
+			},
+			"system": {
+				"type": "string",
+				"defaultValue": "dhl_mdm"
+			},
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "xfunctional"
+			},
+			"source_object_name": {
+				"type": "string",
+				"defaultValue": "facilities"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_api/autoresolve_IR"
+		},
+		"annotations": [],
+		"type": "Json",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"folderPath": {
+					"value": "stage/@{dataset().system}/@{dataset().instance_name}/@{dataset().mode}/@{dataset().source_object_name}/current",
+					"type": "Expression"
+				},
+				"fileSystem": {
+					"value": "@dataset().storage_container",
+					"type": "Expression"
+				}
+			}
+		},
+		"schema": {}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

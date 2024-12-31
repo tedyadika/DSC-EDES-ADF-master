@@ -1,0 +1,237 @@
+{
+	"name": "stop_pipeline_VM_IR",
+	"properties": {
+		"description": "This pipeline checks for runs of the PipelineName with ids other than ThisRunId. If there are none, it turns of the VM",
+		"activities": [
+			{
+				"name": "If Pipeline Is Running",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "For Each ADF",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@or(greaterOrEquals(max(variables('running_pipelines_counter')),1),equals(activity('Get IR info').output.firstRow.EMEA_HOSTED_FLAG,false))",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Stop VM",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"method": "POST",
+								"url": {
+									"value": "https://management.azure.com/subscriptions/@{pipeline().globalParameters.subscriptionId}/resourceGroups/@{activity('Get IR info').output.firstRow.VM_RESOURCE_GROUP}/providers/Microsoft.Compute/virtualMachines/@{activity('Get IR info').output.firstRow.VM_NAME}/deallocate?api-version=2022-11-01",
+									"type": "Expression"
+								},
+								"body": {
+									"value": "{}",
+									"type": "Expression"
+								},
+								"authentication": {
+									"type": "MSI",
+									"resource": "https://management.azure.com/"
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "For Each ADF",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Get IR info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@if(equals(activity('Get IR info').output.firstRow.EMEA_HOSTED_FLAG,true),pipeline().globalParameters.all_active_adfs,variables('empty_array'))",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "Get All Active Pipeline Runs",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"method": "POST",
+								"url": {
+									"value": "https://management.azure.com/subscriptions/@{pipeline().globalParameters.subscriptionId}/resourceGroups/@{item().adf_resource_group}/providers/Microsoft.DataFactory/factories/@{item().adf_name}/queryPipelineRuns?api-version=2018-06-01",
+									"type": "Expression"
+								},
+								"body": {
+									"value": "{\n  \"lastUpdatedAfter\": \"@{adddays(utcnow(),-2)}\",\n  \"lastUpdatedBefore\": \"@{utcnow()}\",\n  \"filters\": [\n    {\n      \"operand\": \"PipelineName\",\n      \"operator\": \"In\",\n      \"values\": [@{pipeline().parameters.pipelines_to_check}]\n    },\n    {\n      \"operand\": \"Status\",\n      \"operator\": \"In\",\n      \"values\": [\"InProgress\",\"Queued\"]\n    }\n  ]\n}",
+									"type": "Expression"
+								},
+								"authentication": {
+									"type": "MSI",
+									"resource": "https://management.core.windows.net/"
+								}
+							}
+						},
+						{
+							"name": "Append count of running pipelines",
+							"type": "AppendVariable",
+							"dependsOn": [
+								{
+									"activity": "Filter To Runs On This SHIR",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "running_pipelines_counter",
+								"value": {
+									"value": "@length(activity('Filter To Runs On This SHIR').output.value)",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Filter Out This Pipeline Run",
+							"type": "Filter",
+							"dependsOn": [
+								{
+									"activity": "Get All Active Pipeline Runs",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"items": {
+									"value": "@activity('Get All Active Pipeline Runs').output.value",
+									"type": "Expression"
+								},
+								"condition": {
+									"value": "@not(equals(item().runId,pipeline().parameters.ThisRunId))",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Filter To Runs On This SHIR",
+							"type": "Filter",
+							"dependsOn": [
+								{
+									"activity": "Filter Out This Pipeline Run",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"items": {
+									"value": "@activity('Filter Out This Pipeline Run').output.value",
+									"type": "Expression"
+								},
+								"condition": {
+									"value": "@equals(item().parameters.IR_alias,pipeline().parameters.IR_alias)",
+									"type": "Expression"
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Get IR info",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT *\n FROM @{pipeline().globalParameters.environment_db}.TBL_IR_INFO WHERE [IR_ALIAS]='@{pipeline().parameters.IR_alias}' ",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "ADF_WMS_CONFIG_INSTANCES"
+						}
+					},
+					"firstRowOnly": true
+				}
+			}
+		],
+		"parameters": {
+			"ThisRunId": {
+				"type": "string"
+			},
+			"pipelines_to_check": {
+				"type": "string",
+				"defaultValue": "\"oracle_prod_plus_mock_arch_upload_VM_SHIR\",\"mongo_upload_VM_SHIR\",\"oracle_daily_upload_VM_SHIR\",\"oracle_initial_upload_VM_SHIR\",\"oracle_initial_upload_specified_tables_VM_SHIR\",\"oracle_initial_heavy_upload_VM_SHIR\",\"sftp_upload_VM_SHIR\", \"mssql_upload_VM_SHIR\",\"sftp_upload_xlsx_VM_SHIR\",\"sftp_incremental_upload_xlsx_VM_SHIR\",\"sftp_full_upload_xlsx_VM_SHIR\""
+			},
+			"IR_alias": {
+				"type": "string",
+				"defaultValue": "VM_SHIR_00"
+			}
+		},
+		"variables": {
+			"running_pipelines_counter": {
+				"type": "Array",
+				"defaultValue": [
+					0
+				]
+			},
+			"empty_array": {
+				"type": "Array",
+				"defaultValue": []
+			}
+		},
+		"folder": {
+			"name": "development/utility"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-04-17T07:06:11Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

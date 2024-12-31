@@ -1,0 +1,168 @@
+{
+	"name": "oracle_mdm_process_VM_SHIR_00",
+	"properties": {
+		"description": "fill cross reference config table",
+		"activities": [
+			{
+				"name": "Get PROD instance info",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT S.SOURCE_NAME as INSTANCE_NAME, S.SYSTEM_DOMAIN,\nS.SYSTEM_NAME, S.SYSTEM_VERSION, MODE, HOST, PORT, SID, USER_NAME, PASSWORD, SOURCE_SCHEMA, TARGET_STORAGE_ACCOUNT \nFROM @{pipeline().globalParameters.environment_db}.[TBL_STAGE_ORACLE_CONNECTION_INFO] CI inner join @{pipeline().globalParameters.environment_db}.TBL_STAGE_SOURCES S on\nCI.STAGE_SOURCE_ID=S.STAGE_SOURCE_ID\nwhere S.SOURCE_NAME='@{pipeline().parameters.instance_name}' AND [MODE]='PROD'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "xxx",
+							"table_name": "xxx"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Lookup_client_wh",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Get PROD instance info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "OracleSource",
+						"oracleReaderQuery": {
+							"value": "select CLIENT_ID CUSTOMER_ID, WH_ID FACILITY_ID from @{activity('Get PROD instance info').output.firstRow.SOURCE_SCHEMA}.CLIENT_WH \nwhere CLIENT_ID <>'MY FIRST CLIENT'",
+							"type": "Expression"
+						},
+						"partitionOption": "None",
+						"convertDecimalToInteger": false,
+						"queryTimeout": "02:00:00"
+					},
+					"dataset": {
+						"referenceName": "gen_oracle_source_VM_SHIR_00",
+						"type": "DatasetReference",
+						"parameters": {
+							"SchemaName": {
+								"value": "@activity('Get PROD instance info').output.firstRow.SOURCE_SCHEMA",
+								"type": "Expression"
+							},
+							"TableName": "xxx",
+							"HOST": {
+								"value": "@activity('Get PROD instance info').output.firstRow.HOST",
+								"type": "Expression"
+							},
+							"PORT": {
+								"value": "@activity('Get PROD instance info').output.firstRow.PORT",
+								"type": "Expression"
+							},
+							"SID": {
+								"value": "@activity('Get PROD instance info').output.firstRow.SID",
+								"type": "Expression"
+							},
+							"USER_NAME": {
+								"value": "@activity('Get PROD instance info').output.firstRow.USER_NAME",
+								"type": "Expression"
+							},
+							"PASSWORD": {
+								"value": "@activity('Get PROD instance info').output.firstRow.PASSWORD",
+								"type": "Expression"
+							}
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "ForEach_MDM",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Lookup_client_wh",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Lookup_client_wh').output.value",
+						"type": "Expression"
+					},
+					"batchCount": 5,
+					"activities": [
+						{
+							"name": "Insert into MDM if not there",
+							"type": "Script",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"linkedServiceName": {
+								"referenceName": "LS_SQL_DB_CONFIG_CTR",
+								"type": "LinkedServiceReference"
+							},
+							"typeProperties": {
+								"scripts": [
+									{
+										"type": "NonQuery",
+										"text": {
+											"value": "IF NOT EXISTS (SELECT 1 FROM [@{pipeline().globalParameters.environment_db}_mdm].[TBL_MDM_LINK_CONFIG]\n\tWHERE SOURCE_FACILITY_ID='@{item().FACILITY_ID}' AND SOURCE_CUSTOMER_ID='@{item().CUSTOMER_ID}'\n\tAND INSTANCE_NAME='@{pipeline().parameters.instance_name}' AND SYSTEM_NAME='@{activity('Get PROD instance info').output.firstRow.SYSTEM_NAME} '\n    AND SYSTEM_DOMAIN='@{activity('Get PROD instance info').output.firstRow.SYSTEM_DOMAIN}' AND SYSTEM_VERSION='@{activity('Get PROD instance info').output.firstRow.SYSTEM_VERSION}')\n\n\tBEGIN\n\t\tINSERT INTO [@{pipeline().globalParameters.environment_db}_mdm].[TBL_MDM_LINK_CONFIG]\n           (SYSTEM_NAME\n           ,SYSTEM_VERSION\n           ,SYSTEM_DOMAIN\n           ,INSTANCE_NAME\n           ,SOURCE_FACILITY_ID\n           ,SOURCE_CUSTOMER_ID\n           , ACTIVE_FLAG)\n     VALUES\n           ('@{activity('Get PROD instance info').output.firstRow.SYSTEM_NAME}', '@{activity('Get PROD instance info').output.firstRow.SYSTEM_VERSION}', '@{activity('Get PROD instance info').output.firstRow.SYSTEM_DOMAIN}', '@{pipeline().parameters.instance_name}','@{item().FACILITY_ID}', '@{item().CUSTOMER_ID}', 1)\n\tEND",
+											"type": "Expression"
+										}
+									}
+								],
+								"scriptBlockExecutionTimeout": "02:00:00"
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "czpoh_4"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_oracle/deploy_multi_SHIR/daily_upload"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-01-29T14:06:09Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

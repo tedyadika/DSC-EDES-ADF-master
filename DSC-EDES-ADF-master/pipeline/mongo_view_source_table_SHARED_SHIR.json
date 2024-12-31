@@ -1,0 +1,195 @@
+{
+	"name": "mongo_view_source_table_SHARED_SHIR",
+	"properties": {
+		"description": "To view a source mongo collection, click on preview data in the source section of either copy activity, depending on if you want to filter or not. \nThe filter must be adjusted inside the activity if used.",
+		"activities": [
+			{
+				"name": "view filtered table",
+				"type": "Copy",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [
+					{
+						"name": "Source",
+						"value": "@{pipeline().parameters.COLLECTION_NAME}"
+					},
+					{
+						"name": "Destination",
+						"value": "@{pipeline().globalParameters.environment_container}/stage/TO_DELETE/TO_DELETE/PROD/@{pipeline().parameters.COLLECTION_NAME}/current/"
+					}
+				],
+				"typeProperties": {
+					"source": {
+						"type": "MongoDbV2Source",
+						"batchSize": 100,
+						"filter": "{\"_id\":{\"$oid\":\"61975929b69342a1a419cac4\"}}"
+					},
+					"sink": {
+						"type": "JsonSink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings"
+						},
+						"formatSettings": {
+							"type": "JsonWriteSettings"
+						}
+					},
+					"enableStaging": false,
+					"validateDataConsistency": true
+				},
+				"inputs": [
+					{
+						"referenceName": "gen_mongo_collection_SHARED_SHIR",
+						"type": "DatasetReference",
+						"parameters": {
+							"CONNECTION_STRING_NAME": {
+								"value": "@pipeline().parameters.CONNECTION_STRING",
+								"type": "Expression"
+							},
+							"DB_NAME": {
+								"value": "@pipeline().parameters.DATABASE_NAME",
+								"type": "Expression"
+							},
+							"COLLECTION_NAME": {
+								"value": "@pipeline().parameters.COLLECTION_NAME",
+								"type": "Expression"
+							}
+						}
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "gen_mongo_sink",
+						"type": "DatasetReference",
+						"parameters": {
+							"object_name": {
+								"value": "@pipeline().parameters.COLLECTION_NAME",
+								"type": "Expression"
+							},
+							"instance": "TO_DELETE",
+							"target_storage_account": "dscemedessa0tpldnsazr",
+							"mode": "PROD",
+							"system_name_domain": "TO_DELETE",
+							"storage_container": {
+								"value": "@pipeline().globalParameters.environment_container",
+								"type": "Expression"
+							}
+						}
+					}
+				]
+			},
+			{
+				"name": "view table",
+				"type": "Copy",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 1,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [
+					{
+						"name": "Source",
+						"value": "@{pipeline().parameters.COLLECTION_NAME}"
+					},
+					{
+						"name": "Destination",
+						"value": "@{pipeline().globalParameters.environment_container}/stage/TO_DELETE/TO_DELETE/PROD/@{pipeline().parameters.COLLECTION_NAME}/current/"
+					}
+				],
+				"typeProperties": {
+					"source": {
+						"type": "MongoDbV2Source",
+						"batchSize": 100
+					},
+					"sink": {
+						"type": "JsonSink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings"
+						},
+						"formatSettings": {
+							"type": "JsonWriteSettings"
+						}
+					},
+					"enableStaging": false,
+					"validateDataConsistency": true
+				},
+				"inputs": [
+					{
+						"referenceName": "gen_mongo_collection_SHARED_SHIR",
+						"type": "DatasetReference",
+						"parameters": {
+							"CONNECTION_STRING_NAME": {
+								"value": "@pipeline().parameters.CONNECTION_STRING",
+								"type": "Expression"
+							},
+							"DB_NAME": {
+								"value": "@pipeline().parameters.DATABASE_NAME",
+								"type": "Expression"
+							},
+							"COLLECTION_NAME": {
+								"value": "@pipeline().parameters.COLLECTION_NAME",
+								"type": "Expression"
+							}
+						}
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "gen_mongo_sink",
+						"type": "DatasetReference",
+						"parameters": {
+							"object_name": {
+								"value": "@pipeline().parameters.COLLECTION_NAME",
+								"type": "Expression"
+							},
+							"instance": "TO_DELETE",
+							"target_storage_account": "dscemedessa0tpldnsazr",
+							"mode": "PROD",
+							"system_name_domain": "TO_DELETE",
+							"storage_container": {
+								"value": "@pipeline().globalParameters.environment_container",
+								"type": "Expression"
+							}
+						}
+					}
+				]
+			}
+		],
+		"parameters": {
+			"CONNECTION_STRING": {
+				"type": "string",
+				"defaultValue": "srv-dct-prod-mongor1-connection-string"
+			},
+			"DATABASE_NAME": {
+				"type": "string",
+				"defaultValue": "opsi-cloud_dhl"
+			},
+			"COLLECTION_NAME": {
+				"type": "string",
+				"defaultValue": "clients"
+			},
+			"FILTER": {
+				"type": "string",
+				"defaultValue": {
+					"_id": {
+						"$oid": "60769ecca131f9cf8c734be2"
+					}
+				}
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_mongo/hardcoded_shared_SHIR"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-04-17T07:09:37Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

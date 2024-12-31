@@ -1,0 +1,50 @@
+{
+	"name": "trigger_synapse_multifrequency",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "gen_target",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "czche_4"
+			},
+			"storage_container": {
+				"type": "string",
+				"defaultValue": "development"
+			},
+			"frequency": {
+				"type": "string",
+				"defaultValue": "daily_standard"
+			}
+		},
+		"folder": {
+			"name": "development/utility"
+		},
+		"annotations": [],
+		"type": "DelimitedText",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"fileName": {
+					"value": "@{dataset().instance_name}|@{dataset().frequency}.csv",
+					"type": "Expression"
+				},
+				"folderPath": {
+					"value": "stage/multifrequency_synapse_trigger/@{dataset().instance_name}",
+					"type": "Expression"
+				},
+				"fileSystem": {
+					"value": "@dataset().storage_container",
+					"type": "Expression"
+				}
+			},
+			"columnDelimiter": ",",
+			"escapeChar": "\\",
+			"quoteChar": "\""
+		},
+		"schema": []
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

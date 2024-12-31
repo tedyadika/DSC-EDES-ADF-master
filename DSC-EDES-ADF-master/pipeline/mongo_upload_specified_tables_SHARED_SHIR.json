@@ -1,0 +1,590 @@
+{
+	"name": "mongo_upload_specified_tables_SHARED_SHIR",
+	"properties": {
+		"activities": [
+			{
+				"name": "Get instance info",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Get stage source ID",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT * FROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_MONGO_CONNECTION_INFO WHERE [STAGE_SOURCE_ID]='@{activity('Get stage source ID').output.firstRow.STAGE_SOURCE_ID}'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "UNUSED"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Copy new data from prod",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Get instance info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Get table names",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Get table names').output.value",
+						"type": "Expression"
+					},
+					"batchCount": 25,
+					"activities": [
+						{
+							"name": "Copy data from prod",
+							"type": "Copy",
+							"dependsOn": [
+								{
+									"activity": "Delete from prod",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								},
+								{
+									"activity": "Get last max version",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 1,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [
+								{
+									"name": "Table_name",
+									"value": "@{item().SOURCE_OBJECT_NAME}"
+								},
+								{
+									"name": "Source",
+									"value": "@{item().SOURCE_OBJECT_NAME}"
+								},
+								{
+									"name": "Destination",
+									"value": "@{pipeline().globalParameters.environment_container}/stage/@{concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN)}/@{pipeline().parameters.instance_name}/@{activity('Get instance info').output.firstRow.MODE}/@{item().SOURCE_OBJECT_NAME}/current/"
+								}
+							],
+							"typeProperties": {
+								"source": {
+									"type": "MongoDbV2Source",
+									"batchSize": 100,
+									"filter": {
+										"value": "{\"@{item().GATE_UPLOAD_COLUMN}\":{$gt:@{if(\n    equals(pipeline().parameters.load, 'daily'), \n    activity('Get last max version').output.firstRow.GATE_UPLOAD_NUMBER, 0)}}}",
+										"type": "Expression"
+									}
+								},
+								"sink": {
+									"type": "JsonSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "JsonWriteSettings"
+									}
+								},
+								"enableStaging": false,
+								"validateDataConsistency": true
+							},
+							"inputs": [
+								{
+									"referenceName": "gen_mongo_collection_SHARED_SHIR",
+									"type": "DatasetReference",
+									"parameters": {
+										"CONNECTION_STRING_NAME": {
+											"value": "@activity('Get instance info').output.firstRow.CONNECTION_STRING",
+											"type": "Expression"
+										},
+										"DB_NAME": {
+											"value": "@activity('Get instance info').output.firstRow.DATABASE_NAME",
+											"type": "Expression"
+										},
+										"COLLECTION_NAME": {
+											"value": "@item().SOURCE_OBJECT_NAME",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "gen_mongo_sink",
+									"type": "DatasetReference",
+									"parameters": {
+										"object_name": {
+											"value": "@item().SOURCE_OBJECT_NAME",
+											"type": "Expression"
+										},
+										"instance": {
+											"value": "@pipeline().parameters.instance_name",
+											"type": "Expression"
+										},
+										"target_storage_account": {
+											"value": "@activity('Get instance info').output.firstRow.TARGET_STORAGE_ACCOUNT",
+											"type": "Expression"
+										},
+										"mode": {
+											"value": "@activity('Get instance info').output.firstRow.MODE",
+											"type": "Expression"
+										},
+										"system_name_domain": {
+											"value": "@concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN)",
+											"type": "Expression"
+										},
+										"storage_container": {
+											"value": "@pipeline().globalParameters.environment_container",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						},
+						{
+							"name": "Delete from prod",
+							"type": "Delete",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataset": {
+									"referenceName": "gen_mongo_sink",
+									"type": "DatasetReference",
+									"parameters": {
+										"object_name": {
+											"value": "@item().SOURCE_OBJECT_NAME",
+											"type": "Expression"
+										},
+										"instance": {
+											"value": "@pipeline().parameters.instance_name",
+											"type": "Expression"
+										},
+										"target_storage_account": {
+											"value": "@activity('Get instance info').output.firstRow.TARGET_STORAGE_ACCOUNT",
+											"type": "Expression"
+										},
+										"mode": "PROD",
+										"system_name_domain": {
+											"value": "@concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN)",
+											"type": "Expression"
+										},
+										"storage_container": {
+											"value": "@pipeline().globalParameters.environment_container",
+											"type": "Expression"
+										}
+									}
+								},
+								"enableLogging": false,
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"enablePartitionDiscovery": false
+								}
+							}
+						},
+						{
+							"name": "Get last max version",
+							"type": "Lookup",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"source": {
+									"type": "AzureSqlSource",
+									"sqlReaderQuery": {
+										"value": "SELECT COALESCE((SELECT GATE_UPLOAD_NUMBER \n    FROM @{pipeline().globalParameters.environment_db}.TBL_BRONZE_CONFIG_TABLES_APPEND \n    WHERE [INSTANCE_ID]='@{activity('Get stage source ID').output.firstRow.STAGE_SOURCE_ID}' \n    AND SOURCE_OBJECT_NAME = '@{item().SOURCE_OBJECT_NAME}'\n    AND CREATED_DATE = (SELECT MAX(CREATED_DATE) FROM @{pipeline().globalParameters.environment_db}.TBL_BRONZE_CONFIG_TABLES_APPEND \n        WHERE [INSTANCE_ID]=@{item().INSTANCE_ID} \n        AND SOURCE_OBJECT_NAME = '@{item().SOURCE_OBJECT_NAME}')),\n    0) AS GATE_UPLOAD_NUMBER",
+										"type": "Expression"
+									},
+									"queryTimeout": "02:00:00",
+									"partitionOption": "None"
+								},
+								"dataset": {
+									"referenceName": "CONFIG_TABLES",
+									"type": "DatasetReference",
+									"parameters": {
+										"schema": "dbo",
+										"table_name": "UNUSED"
+									}
+								},
+								"firstRowOnly": true
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Get table names",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Get stage source ID",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT ST.*, GATE_UPLOAD_COLUMN, BLI.INSTANCE_ID FROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_TABLES ST\nJOIN test.TBL_BRONZE_LOADING_INFO BLI\n  ON BLI.STAGE_SOURCE_ID = ST.STAGE_SOURCE_ID\nJOIN test.TBL_BRONZE_TABLES BT\n  on BLI.INSTANCE_ID = BT.INSTANCE_ID\n  AND ST.SOURCE_OBJECT_NAME = BT.SOURCE_OBJECT_NAME\nWHERE ST.STAGE_SOURCE_ID = '@{activity('Get stage source ID').output.firstRow.STAGE_SOURCE_ID}'\nAND ST.SOURCE_OBJECT_NAME IN (@{pipeline().parameters.table_names})\nORDER BY LOAD_ORDER",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "UNUSED"
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "Get stage source ID",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT STAGE_SOURCE_ID,\n\tSYSTEM_NAME,\n\tLOWER(SYSTEM_DOMAIN) SYSTEM_DOMAIN\n FROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_SOURCES WHERE [SOURCE_NAME]='@{pipeline().parameters.instance_name}' AND SYSTEM_NAME='@{pipeline().parameters.system}'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "ADF_WMS_CONFIG_INSTANCES"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Get arch table names if daily",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Get stage source ID",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT * FROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_TABLES\nWHERE [STAGE_SOURCE_ID]='@{activity('Get stage source ID').output.firstRow.STAGE_SOURCE_ID}'\nAND LOAD_ARCHIVE_FLAG = 1\nAND SOURCE_OBJECT_NAME IN (@{pipeline().parameters.table_names})\nAND '@{pipeline().parameters.load}' = 'daily'\nORDER BY LOAD_ORDER",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "UNUSED"
+						}
+					},
+					"firstRowOnly": false
+				}
+			},
+			{
+				"name": "Copy all _id cols",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "Get arch table names if daily",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Copy new data from prod",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('Get arch table names if daily').output.value",
+						"type": "Expression"
+					},
+					"batchCount": 25,
+					"activities": [
+						{
+							"name": "Copy data from arch",
+							"type": "Copy",
+							"dependsOn": [
+								{
+									"activity": "Delete from ARCH",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 1,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [
+								{
+									"name": "Table_name",
+									"value": "@{item().SOURCE_OBJECT_NAME}"
+								},
+								{
+									"name": "Source",
+									"value": "@{item().SOURCE_OBJECT_NAME}"
+								},
+								{
+									"name": "Destination",
+									"value": "@{pipeline().globalParameters.environment_container}/stage/@{concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN)}/@{pipeline().parameters.instance_name}/@{'ARCH'}/@{item().SOURCE_OBJECT_NAME}/current/"
+								}
+							],
+							"typeProperties": {
+								"source": {
+									"type": "MongoDbV2Source",
+									"batchSize": 100,
+									"filter": "",
+									"cursorMethods": {
+										"project": {
+											"value": "{@{item().KEY_COLUMNS_ARCH}:1}",
+											"type": "Expression"
+										}
+									}
+								},
+								"sink": {
+									"type": "JsonSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings",
+										"copyBehavior": "FlattenHierarchy"
+									},
+									"formatSettings": {
+										"type": "JsonWriteSettings"
+									}
+								},
+								"enableStaging": false
+							},
+							"inputs": [
+								{
+									"referenceName": "gen_mongo_collection_SHARED_SHIR",
+									"type": "DatasetReference",
+									"parameters": {
+										"CONNECTION_STRING_NAME": {
+											"value": "@activity('Get instance info').output.firstRow.CONNECTION_STRING",
+											"type": "Expression"
+										},
+										"DB_NAME": {
+											"value": "@activity('Get instance info').output.firstRow.DATABASE_NAME",
+											"type": "Expression"
+										},
+										"COLLECTION_NAME": {
+											"value": "@item().SOURCE_OBJECT_NAME",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "gen_mongo_sink",
+									"type": "DatasetReference",
+									"parameters": {
+										"object_name": {
+											"value": "@item().SOURCE_OBJECT_NAME",
+											"type": "Expression"
+										},
+										"instance": {
+											"value": "@pipeline().parameters.instance_name",
+											"type": "Expression"
+										},
+										"target_storage_account": {
+											"value": "@activity('Get instance info').output.firstRow.TARGET_STORAGE_ACCOUNT",
+											"type": "Expression"
+										},
+										"mode": {
+											"value": "ARCH",
+											"type": "Expression"
+										},
+										"system_name_domain": {
+											"value": "@concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN)",
+											"type": "Expression"
+										},
+										"storage_container": {
+											"value": "@pipeline().globalParameters.environment_container",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						},
+						{
+							"name": "Delete from ARCH",
+							"type": "Delete",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataset": {
+									"referenceName": "gen_mongo_sink",
+									"type": "DatasetReference",
+									"parameters": {
+										"object_name": {
+											"value": "@item().SOURCE_OBJECT_NAME",
+											"type": "Expression"
+										},
+										"instance": {
+											"value": "@pipeline().parameters.instance_name",
+											"type": "Expression"
+										},
+										"target_storage_account": {
+											"value": "@activity('Get instance info').output.firstRow.TARGET_STORAGE_ACCOUNT",
+											"type": "Expression"
+										},
+										"mode": "ARCH",
+										"system_name_domain": {
+											"value": "@concat(\n    activity('Get stage source ID').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get stage source ID').output.firstRow.SYSTEM_DOMAIN)",
+											"type": "Expression"
+										},
+										"storage_container": {
+											"value": "@pipeline().globalParameters.environment_container",
+											"type": "Expression"
+										}
+									}
+								},
+								"enableLogging": false,
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"enablePartitionDiscovery": false
+								}
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "dct"
+			},
+			"system": {
+				"type": "string",
+				"defaultValue": "dct_emea"
+			},
+			"load": {
+				"type": "string",
+				"defaultValue": "initial"
+			},
+			"table_names": {
+				"type": "string",
+				"defaultValue": "'table_1', 'table_2'"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_mongo/hardcoded_shared_SHIR"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-04-17T07:09:37Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

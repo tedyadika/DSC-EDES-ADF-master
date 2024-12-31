@@ -1,0 +1,29 @@
+{
+	"name": "ADF_CONFIG_TABLES",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "LKS_AzureSynapseAnalytics_ldwh_config",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"TABLE": {
+				"type": "string",
+				"defaultValue": "NOT_USED"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_warehousing"
+		},
+		"annotations": [],
+		"type": "AzureSqlDWTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": "dbo",
+			"table": {
+				"value": "@dataset().TABLE",
+				"type": "Expression"
+			}
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

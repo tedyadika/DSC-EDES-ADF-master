@@ -1,0 +1,54 @@
+{
+	"name": "gen_rest_api_SHARED_SHIR",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "gen_rest_api_source_on_prem_shared_SHIR",
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"url": {
+					"value": "@dataset().base_url",
+					"type": "Expression"
+				},
+				"username": {
+					"value": "@dataset().username",
+					"type": "Expression"
+				},
+				"password_secret": {
+					"value": "@dataset().password_secret",
+					"type": "Expression"
+				}
+			}
+		},
+		"parameters": {
+			"base_url": {
+				"type": "string",
+				"defaultValue": "https://mdmconnect.dhl.com/api/rest/"
+			},
+			"relative_url": {
+				"type": "string",
+				"defaultValue": "facilities?type=json"
+			},
+			"username": {
+				"type": "string",
+				"defaultValue": "zXK21np7M0ZnYsVTRZzQI7EP1M8WwVpR"
+			},
+			"password_secret": {
+				"type": "string",
+				"defaultValue": "mdm-password"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_api/hardcoded_shared_SHIR"
+		},
+		"annotations": [],
+		"type": "RestResource",
+		"typeProperties": {
+			"relativeUrl": {
+				"value": "@dataset().relative_url",
+				"type": "Expression"
+			}
+		},
+		"schema": []
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

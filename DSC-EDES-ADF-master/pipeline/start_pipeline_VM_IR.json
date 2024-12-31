@@ -1,0 +1,209 @@
+{
+	"name": "start_pipeline_VM_IR",
+	"properties": {
+		"activities": [
+			{
+				"name": "If VM needs starting",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "If SHIR is EMEA Hosted",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@variables('VM_needs_starting')",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Start VM",
+							"type": "WebActivity",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"method": "POST",
+								"url": {
+									"value": "https://management.azure.com/subscriptions/8b20e38c-72fb-4030-a702-128e713479ca/resourceGroups/@{activity('Get IR info').output.firstRow.VM_RESOURCE_GROUP}/providers/Microsoft.Compute/virtualMachines/@{activity('Get IR info').output.firstRow.VM_NAME}/start?api-version=2022-11-01",
+									"type": "Expression"
+								},
+								"body": {
+									"value": "{}",
+									"type": "Expression"
+								},
+								"authentication": {
+									"type": "MSI",
+									"resource": "https://management.azure.com/"
+								}
+							}
+						},
+						{
+							"name": "Wait for SHIR to start",
+							"type": "Wait",
+							"dependsOn": [
+								{
+									"activity": "Start VM",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"waitTimeInSeconds": 150
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "Get IR info",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT *\n FROM @{pipeline().globalParameters.environment_db}.TBL_IR_INFO WHERE [IR_ALIAS]='@{pipeline().parameters.IR_alias}' ",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "ADF_WMS_CONFIG_INSTANCES"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "If SHIR is EMEA Hosted",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Get IR info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(activity('Get IR info').output.firstRow.EMEA_HOSTED_FLAG,true)",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Wait in case VM is stopping",
+							"description": "Wait 90s  in case VM is shutting off, so that we know to turn it on again. If another pipeline checks during these 10s, it will see we are using it and will not shut it off.",
+							"type": "Wait",
+							"dependsOn": [],
+							"userProperties": [],
+							"typeProperties": {
+								"waitTimeInSeconds": 90
+							}
+						},
+						{
+							"name": "Check VM state",
+							"type": "WebActivity",
+							"dependsOn": [
+								{
+									"activity": "Wait in case VM is stopping",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 2,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"method": "GET",
+								"url": {
+									"value": "https://management.azure.com/subscriptions/8b20e38c-72fb-4030-a702-128e713479ca/resourceGroups/@{activity('Get IR info').output.firstRow.VM_RESOURCE_GROUP}/providers/Microsoft.Compute/virtualMachines/@{activity('Get IR info').output.firstRow.VM_NAME}/InstanceView?api-version=2020-12-01",
+									"type": "Expression"
+								},
+								"authentication": {
+									"type": "MSI",
+									"resource": "https://management.azure.com/"
+								}
+							}
+						},
+						{
+							"name": "Set VM_needs_starting",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Check VM state",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "VM_needs_starting",
+								"value": {
+									"value": "@if(greaterOrEquals(length(activity('Check VM state').output.statuses), 2), not(equals(activity('Check VM state').output.statuses[1].displayStatus,'Ready')), equals(1,1))",
+									"type": "Expression"
+								}
+							}
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"IR_alias": {
+				"type": "string",
+				"defaultValue": "VM_SHIR_00"
+			}
+		},
+		"variables": {
+			"VM_needs_starting": {
+				"type": "Boolean",
+				"defaultValue": false
+			}
+		},
+		"folder": {
+			"name": "development/utility"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-02-21T08:48:29Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

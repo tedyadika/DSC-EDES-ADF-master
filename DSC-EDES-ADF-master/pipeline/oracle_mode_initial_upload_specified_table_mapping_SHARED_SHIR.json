@@ -1,0 +1,446 @@
+{
+	"name": "oracle_mode_initial_upload_specified_table_mapping_SHARED_SHIR",
+	"properties": {
+		"description": "This pipeline does not delete old data. It is useful for loading specific table using column mapping that resolves issues coming from sql table column names being not valid column names in parquet. E.g including special characters or spaces.",
+		"activities": [
+			{
+				"name": "Get table names",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT st.SOURCE_OBJECT_NAME TABLE_NAME, S.SOURCE_NAME INSTANCE_NAME,\nLOAD_ARCHIVE_FLAG DELETE_LOGIC_FLAG, null BUSINESS_KEY_LIST, LOAD_ORDER,\nKEY_COLUMNS_ARCH, S.SYSTEM_DOMAIN [SYSTEM], LOWER_BOUND, PARTITION_COL_NAME_ARCH, PARTITION_COL_NAME_PROD, UPPER_BOUND\n FROM test.TBL_STAGE_TABLES ST inner join \ntest.TBL_STAGE_SOURCES S on\nST.STAGE_SOURCE_ID=S.STAGE_SOURCE_ID\nwhere  S.SOURCE_NAME='@{pipeline().parameters.instance_name}' AND st.SOURCE_OBJECT_NAME='@{pipeline().parameters.table_name}'\nORDER BY LOAD_ORDER",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "ADF_WMS_CONFIG_INSTANCES"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "Get MODE instance info",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT S.SOURCE_NAME as INSTANCE_NAME, S.SYSTEM_DOMAIN [SYSTEM], MODE,HOST,PORT,SID,USER_NAME,PASSWORD,SOURCE_SCHEMA,TARGET_STORAGE_ACCOUNT, SYSTEM_NAME, LOWER(S.SYSTEM_DOMAIN) [SYSTEM_DOMAIN]\nFROM @{pipeline().globalParameters.environment_db}.[TBL_STAGE_ORACLE_CONNECTION_INFO] CI inner join @{pipeline().globalParameters.environment_db}.TBL_STAGE_SOURCES S on\nCI.STAGE_SOURCE_ID=S.STAGE_SOURCE_ID\nwhere S.SOURCE_NAME='@{pipeline().parameters.instance_name}' AND [MODE]='@{pipeline().parameters.mode}'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "ADF_WMS_CONFIG_INSTANCES"
+						}
+					},
+					"firstRowOnly": true
+				}
+			},
+			{
+				"name": "If prod table is partitioned",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "GET MODE COL MAPPING",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@equals(coalesce(activity('Get table names').output.firstRow.PARTITION_COL_NAME_ARCH,'N/A'),'N/A')",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "Copy partitioned data from prod",
+							"type": "Copy",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [
+								{
+									"name": "Table_name",
+									"value": "@{activity('Get table names').output.firstRow.TABLE_NAME}"
+								},
+								{
+									"name": "Source",
+									"value": "@{activity('Get MODE instance info').output.firstRow.SOURCE_SCHEMA}.@{activity('Get table names').output.firstRow.TABLE_NAME}"
+								},
+								{
+									"name": "Destination",
+									"value": "development/adf_stage/@{'WMS'}/@{pipeline().parameters.instance_name}/@{'PROD'}/@{activity('Get table names').output.firstRow.TABLE_NAME}/current/"
+								}
+							],
+							"typeProperties": {
+								"source": {
+									"type": "OracleSource",
+									"oracleReaderQuery": {
+										"value": "SELECT @{activity('GET MODE COL MAPPING').output.value[0].SELECT_COLS} FROM @{activity('Get MODE instance info').output.firstRow.SOURCE_SCHEMA}.@{activity('Get table names').output.firstRow.TABLE_NAME}\nWHERE ?AdfRangePartitionColumnName <= ?AdfRangePartitionUpbound \nAND ?AdfRangePartitionColumnName >= ?AdfRangePartitionLowbound",
+										"type": "Expression"
+									},
+									"partitionOption": "DynamicRange",
+									"partitionSettings": {
+										"partitionColumnName": {
+											"value": "@{activity('Get table names').output.firstRow.PARTITION_COL_NAME_PROD}",
+											"type": "Expression"
+										},
+										"partitionUpperBound": {
+											"value": "@{activity('Get table names').output.firstRow.UPPER_BOUND}",
+											"type": "Expression"
+										},
+										"partitionLowerBound": {
+											"value": "@{activity('Get table names').output.firstRow.LOWER_BOUND}",
+											"type": "Expression"
+										}
+									},
+									"convertDecimalToInteger": false,
+									"queryTimeout": "02:00:00"
+								},
+								"sink": {
+									"type": "ParquetSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "ParquetWriteSettings"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "gen_oracle_source_SHARED_SHIR",
+									"type": "DatasetReference",
+									"parameters": {
+										"SchemaName": {
+											"value": "@activity('Get MODE instance info').output.firstRow.SOURCE_SCHEMA",
+											"type": "Expression"
+										},
+										"TableName": {
+											"value": "@activity('Get table names').output.firstRow.TABLE_NAME",
+											"type": "Expression"
+										},
+										"HOST": {
+											"value": "@activity('Get MODE instance info').output.firstRow.HOST",
+											"type": "Expression"
+										},
+										"PORT": {
+											"value": "@activity('Get MODE instance info').output.firstRow.PORT",
+											"type": "Expression"
+										},
+										"SID": {
+											"value": "@activity('Get MODE instance info').output.firstRow.SID",
+											"type": "Expression"
+										},
+										"USER_NAME": {
+											"value": "@activity('Get MODE instance info').output.firstRow.USER_NAME",
+											"type": "Expression"
+										},
+										"PASSWORD": {
+											"value": "@activity('Get MODE instance info').output.firstRow.PASSWORD",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "gen_wms_sink",
+									"type": "DatasetReference",
+									"parameters": {
+										"SOURCE_OBJECT_NAME": {
+											"value": "@activity('Get table names').output.firstRow.TABLE_NAME",
+											"type": "Expression"
+										},
+										"target_instance": {
+											"value": "@pipeline().parameters.instance_name",
+											"type": "Expression"
+										},
+										"target_storage_account": {
+											"value": "@activity('Get MODE instance info').output.firstRow.TARGET_STORAGE_ACCOUNT",
+											"type": "Expression"
+										},
+										"mode": "PROD",
+										"System": {
+											"value": "@concat(\n    activity('Get MODE instance info').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get MODE instance info').output.firstRow.SYSTEM_DOMAIN)",
+											"type": "Expression"
+										},
+										"storage_container": {
+											"value": "@pipeline().globalParameters.environment_container",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						}
+					],
+					"ifTrueActivities": [
+						{
+							"name": "Copy unpartitioned data from prod",
+							"type": "Copy",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [
+								{
+									"name": "Table_name",
+									"value": "@{activity('Get table names').output.firstRow.TABLE_NAME}"
+								},
+								{
+									"name": "Source",
+									"value": "@{activity('Get MODE instance info').output.firstRow.SOURCE_SCHEMA}.@{activity('Get table names').output.firstRow.TABLE_NAME}"
+								},
+								{
+									"name": "Destination",
+									"value": "development/adf_stage/@{'WMS'}/@{pipeline().parameters.instance_name}/@{'PROD'}/@{activity('Get table names').output.firstRow.TABLE_NAME}/current/"
+								}
+							],
+							"typeProperties": {
+								"source": {
+									"type": "OracleSource",
+									"oracleReaderQuery": {
+										"value": "SELECT @{activity('GET MODE COL MAPPING').output.value[0].SELECT_COLS} FROM @{activity('Get MODE instance info').output.firstRow.SOURCE_SCHEMA}.@{activity('Get table names').output.firstRow.TABLE_NAME}",
+										"type": "Expression"
+									},
+									"partitionOption": "None",
+									"convertDecimalToInteger": false,
+									"queryTimeout": "02:00:00"
+								},
+								"sink": {
+									"type": "ParquetSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "ParquetWriteSettings"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "gen_oracle_source_SHARED_SHIR",
+									"type": "DatasetReference",
+									"parameters": {
+										"SchemaName": {
+											"value": "@activity('Get MODE instance info').output.firstRow.SOURCE_SCHEMA",
+											"type": "Expression"
+										},
+										"TableName": {
+											"value": "@activity('Get table names').output.firstRow.TABLE_NAME",
+											"type": "Expression"
+										},
+										"HOST": {
+											"value": "@activity('Get MODE instance info').output.firstRow.HOST",
+											"type": "Expression"
+										},
+										"PORT": {
+											"value": "@activity('Get MODE instance info').output.firstRow.PORT",
+											"type": "Expression"
+										},
+										"SID": {
+											"value": "@activity('Get MODE instance info').output.firstRow.SID",
+											"type": "Expression"
+										},
+										"USER_NAME": {
+											"value": "@activity('Get MODE instance info').output.firstRow.USER_NAME",
+											"type": "Expression"
+										},
+										"PASSWORD": {
+											"value": "@activity('Get MODE instance info').output.firstRow.PASSWORD",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "gen_wms_sink",
+									"type": "DatasetReference",
+									"parameters": {
+										"SOURCE_OBJECT_NAME": {
+											"value": "@activity('Get table names').output.firstRow.TABLE_NAME",
+											"type": "Expression"
+										},
+										"target_instance": {
+											"value": "@pipeline().parameters.instance_name",
+											"type": "Expression"
+										},
+										"target_storage_account": {
+											"value": "@activity('Get MODE instance info').output.firstRow.TARGET_STORAGE_ACCOUNT",
+											"type": "Expression"
+										},
+										"mode": "PROD",
+										"System": {
+											"value": "@concat(\n    activity('Get MODE instance info').output.firstRow.SYSTEM_NAME,\n    '_',\n    activity('Get MODE instance info').output.firstRow.SYSTEM_DOMAIN)",
+											"type": "Expression"
+										},
+										"storage_container": {
+											"value": "@pipeline().globalParameters.environment_container",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						}
+					]
+				}
+			},
+			{
+				"name": "GET MODE COL MAPPING",
+				"type": "Lookup",
+				"dependsOn": [
+					{
+						"activity": "Get table names",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Get MODE instance info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "OracleSource",
+						"oracleReaderQuery": {
+							"value": "with col_mappings as (\nselect OWNER, TABLE_NAME, COLUMN_ID,  COLUMN_NAME , REGEXP_REPLACE(COLUMN_NAME, '\\W', '_') AS FIXED_COLUMN_NAME\nfrom ALL_TAB_COLUMNS\nwhere OWNER = '@{activity('Get MODE instance info').output.firstRow.SOURCE_SCHEMA}'\nAND TABLE_NAME = '@{pipeline().parameters.table_name}'\n)\nselect OWNER,\n        TABLE_NAME,\n        LISTAGG(CASE WHEN COLUMN_NAME = FIXED_COLUMN_NAME THEN COLUMN_NAME ELSE '\"' || COLUMN_NAME ||  '\" AS DW_ADJ_COL_' || FIXED_COLUMN_NAME END, ',') WITHIN GROUP (ORDER BY COLUMN_ID) AS SELECT_COLS\nfrom col_mappings\nGROUP BY OWNER, TABLE_NAME\nORDER BY TABLE_NAME;",
+							"type": "Expression"
+						},
+						"partitionOption": "None",
+						"convertDecimalToInteger": false,
+						"queryTimeout": "02:00:00"
+					},
+					"dataset": {
+						"referenceName": "gen_oracle_source_SHARED_SHIR",
+						"type": "DatasetReference",
+						"parameters": {
+							"SchemaName": {
+								"value": "@activity('Get MODE instance info').output.firstRow.SOURCE_SCHEMA",
+								"type": "Expression"
+							},
+							"TableName": {
+								"value": "@activity('Get table names').output.firstRow.TABLE_NAME",
+								"type": "Expression"
+							},
+							"HOST": {
+								"value": "@activity('Get MODE instance info').output.firstRow.HOST",
+								"type": "Expression"
+							},
+							"PORT": {
+								"value": "@activity('Get MODE instance info').output.firstRow.PORT",
+								"type": "Expression"
+							},
+							"SID": {
+								"value": "@activity('Get MODE instance info').output.firstRow.SID",
+								"type": "Expression"
+							},
+							"USER_NAME": {
+								"value": "@activity('Get MODE instance info').output.firstRow.USER_NAME",
+								"type": "Expression"
+							},
+							"PASSWORD": {
+								"value": "@activity('Get MODE instance info').output.firstRow.PASSWORD",
+								"type": "Expression"
+							}
+						}
+					},
+					"firstRowOnly": false
+				}
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "czpoh_4"
+			},
+			"table_name": {
+				"type": "string",
+				"defaultValue": "PRTDSC"
+			},
+			"mode": {
+				"type": "string",
+				"defaultValue": "PROD"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_oracle/hardcoded_shared_SHIR/initial_upload"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-01-16T08:21:12Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

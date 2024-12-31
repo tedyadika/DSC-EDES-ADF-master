@@ -1,0 +1,56 @@
+name: "Old Inactive - Deploy ADF to PROD - DO NOT USE !"
+on:
+  workflow_dispatch:
+
+permissions:
+      id-token: write
+      contents: read
+      
+jobs: 
+  build-and-deploy: 
+    runs-on: [self-hosted, EMEA-VM]
+    environment: adf_deployment_prod
+    steps:
+    - name: checkout branch with artifacts
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        ref: 'adf_publish'
+    - name: setup offline actions
+      run: |
+        cp -R /home/r2eA9YadfdFpDcF/actions-offline .
+        pwd
+        ls actions-offline
+    - name: 'Run Azure CLI commands for login'
+      run: |
+          source $CONDA_INIT_SCRIPT
+          conda activate synapse_deploy_py38
+          az login --identity
+    - name: replace folder name
+      run: |
+        source $CONDA_INIT_SCRIPT
+        conda activate synapse_deploy_py38
+        python replace_folder_name.py
+    - name: Deploy resources
+      uses: ./actions-offline/Azure-data-factory-deploy-action-390b781
+      with:
+        resourceGroupName: ${{ vars.ADF_RESOURCE_GROUP }}
+        dataFactoryName: ${{ vars.ADF_NAME }}
+        armTemplateFile: ./dscemedesadf0tpldnsazr/ARMTemplateForFactoryProd.json
+        armTemplateParametersFile: ./dscemedesadf0tpldnsazr/ARMTemplateParametersForFactory.json
+        additionalParameters: '${{ vars.ADF_PROD_PARAMETERS }}'
+        # skipAzModuleInstallation: true [optional]
+    - name: stop all triggers in ADF PROD
+      run: |
+        source $CONDA_INIT_SCRIPT
+        conda activate synapse_deploy_py38
+        az login --identity
+        az datafactory trigger list --factory-name ${{ vars.ADF_NAME }} --resource-group ${{ vars.ADF_RESOURCE_GROUP }} --query "[].[name]" -o tsv > all_triggers.txt
+        for trigger in $(cat all_triggers.txt); do az datafactory trigger stop --name $trigger --factory-name ${{ vars.ADF_NAME }} --resource-group ${{ vars.ADF_RESOURCE_GROUP }}; done
+    - name: Start ADF PROD triggers based on active_triggers.txt
+      run: |
+        source $CONDA_INIT_SCRIPT
+        conda activate synapse_deploy_py38
+        az login --identity
+        for trigger in $(cat active_triggers.txt); do az datafactory trigger start --name $trigger --factory-name ${{ vars.ADF_NAME }} --resource-group ${{ vars.ADF_RESOURCE_GROUP }}; done
+

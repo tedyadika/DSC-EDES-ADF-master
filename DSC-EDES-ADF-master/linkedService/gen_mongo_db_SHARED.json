@@ -1,0 +1,39 @@
+{
+	"name": "gen_mongo_db_SHARED",
+	"properties": {
+		"type": "MongoDbV2",
+		"annotations": [],
+		"typeProperties": {
+			"connectionString": {
+				"type": "AzureKeyVaultSecret",
+				"store": {
+					"referenceName": "AzureKeyVault",
+					"type": "LinkedServiceReference"
+				},
+				"secretName": {
+					"value": "@linkedService().CONNECTION_STRING_SECRET_NAME",
+					"type": "Expression"
+				}
+			},
+			"database": {
+				"value": "@linkedService().DB_NAME",
+				"type": "Expression"
+			}
+		},
+		"connectVia": {
+			"referenceName": "DSCGlobalIntegrationRuntime-OnPrem-WE",
+			"type": "IntegrationRuntimeReference"
+		},
+		"parameters": {
+			"CONNECTION_STRING_SECRET_NAME": {
+				"type": "string",
+				"defaultValue": "RO-BI-ZA-TOMS-DR-string"
+			},
+			"DB_NAME": {
+				"type": "string",
+				"defaultValue": "opsi-cloud_toms"
+			}
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/linkedservices"
+}

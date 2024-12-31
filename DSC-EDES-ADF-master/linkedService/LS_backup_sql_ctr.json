@@ -1,0 +1,25 @@
+{
+	"name": "LS_backup_sql_ctr",
+	"properties": {
+		"parameters": {
+			"db_name": {
+				"type": "string",
+				"defaultValue": "dscemedesqldb0pldnsazr_2023-08-29T02-16Z"
+			}
+		},
+		"annotations": [],
+		"type": "AzureSqlDatabase",
+		"typeProperties": {
+			"connectionString": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=dscemedesqlsrv0pldnsazr.database.windows.net;Initial Catalog=@{linkedService().db_name};User ID=sqlgodmode",
+			"password": {
+				"type": "AzureKeyVaultSecret",
+				"store": {
+					"referenceName": "AzureKeyVault",
+					"type": "LinkedServiceReference"
+				},
+				"secretName": "sql-db-configs-password"
+			}
+		}
+	},
+	"type": "Microsoft.DataFactory/factories/linkedservices"
+}

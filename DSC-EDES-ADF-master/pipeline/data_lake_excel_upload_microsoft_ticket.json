@@ -1,0 +1,111 @@
+{
+	"name": "data_lake_excel_upload_microsoft_ticket",
+	"properties": {
+		"activities": [
+			{
+				"name": "Copy excel file",
+				"type": "Copy",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "7.00:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "ExcelSource",
+						"additionalColumns": [
+							{
+								"name": "DW_SOURCE_FILE",
+								"value": "$$FILENAME"
+							}
+						],
+						"storeSettings": {
+							"type": "AzureBlobFSReadSettings",
+							"recursive": true,
+							"wildcardFolderPath": {
+								"value": "stage/goodyear_wms/czchegy/PROD_PRESTAGE/in/DataLake/SourceGYManualExportedData/DATA_TEST",
+								"type": "Expression"
+							},
+							"wildcardFileName": {
+								"value": "*TEST_WITH_MAGDA.XLSX",
+								"type": "Expression"
+							},
+							"enablePartitionDiscovery": false
+						}
+					},
+					"sink": {
+						"type": "DelimitedTextSink",
+						"storeSettings": {
+							"type": "AzureBlobFSWriteSettings",
+							"copyBehavior": "PreserveHierarchy"
+						},
+						"formatSettings": {
+							"type": "DelimitedTextWriteSettings",
+							"quoteAllText": true,
+							"fileExtension": {
+								"value": ".csv",
+								"type": "Expression"
+							}
+						}
+					},
+					"enableStaging": false,
+					"translator": {
+						"type": "TabularTranslator",
+						"typeConversion": true,
+						"typeConversionSettings": {
+							"allowDataTruncation": true,
+							"treatBooleanAsNumber": false
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "data_lake_xlsx_source",
+						"type": "DatasetReference",
+						"parameters": {
+							"folder_path": "UNUSED",
+							"file_name": "UNUSED",
+							"sheet_name": {
+								"value": "sheet1",
+								"type": "Expression"
+							},
+							"cell_range": {
+								"value": "A1",
+								"type": "Expression"
+							},
+							"environment_container": {
+								"value": "development",
+								"type": "Expression"
+							},
+							"first_row_as_header": false
+						}
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "gen_csv_sink",
+						"type": "DatasetReference",
+						"parameters": {
+							"FolderPath": {
+								"value": "stage/goodyear_wms/czchegy/PROD/WAREHOUSE_TASK_TEST",
+								"type": "Expression"
+							},
+							"Container": {
+								"value": "development",
+								"type": "Expression"
+							}
+						}
+					}
+				]
+			}
+		],
+		"folder": {
+			"name": "development/microsoft_tickets"
+		},
+		"annotations": []
+	}
+}

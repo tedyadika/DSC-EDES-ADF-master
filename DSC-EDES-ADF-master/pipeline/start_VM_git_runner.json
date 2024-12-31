@@ -1,0 +1,70 @@
+{
+	"name": "start_VM_git_runner",
+	"properties": {
+		"description": "This pipeline starts VM that we use as github actions runner. Used for runner in Singularity.",
+		"activities": [
+			{
+				"name": "Start VM",
+				"type": "WebActivity",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 2,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"method": "POST",
+					"url": {
+						"value": "https://management.azure.com/subscriptions/@{pipeline().parameters.SubscriptionId}/resourceGroups/@{pipeline().parameters.vm_resource_group}/providers/Microsoft.Compute/virtualMachines/@{pipeline().parameters.vm_name}/start?api-version=2023-09-01",
+						"type": "Expression"
+					},
+					"body": {
+						"value": "{}",
+						"type": "Expression"
+					},
+					"authentication": {
+						"type": "MSI",
+						"resource": "https://management.azure.com/"
+					}
+				}
+			}
+		],
+		"parameters": {
+			"SubscriptionId": {
+				"type": "string",
+				"defaultValue": "8b20e38c-72fb-4030-a702-128e713479ca"
+			},
+			"vm_resource_group": {
+				"type": "string",
+				"defaultValue": "DscEMEADataEcoSysCtr"
+			},
+			"vm_name": {
+				"type": "string",
+				"defaultValue": "dscemdataecosysctrvm01ctr"
+			}
+		},
+		"variables": {
+			"pipeline_is_running": {
+				"type": "Boolean",
+				"defaultValue": false
+			},
+			"adf_to_check": {
+				"type": "String",
+				"defaultValue": "0"
+			},
+			"counter": {
+				"type": "String",
+				"defaultValue": "0"
+			}
+		},
+		"folder": {
+			"name": "development/git_runner"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-02-20T12:42:35Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

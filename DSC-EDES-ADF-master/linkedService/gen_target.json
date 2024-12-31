@@ -1,0 +1,11 @@
+{
+	"name": "gen_target",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"annotations": [],
+		"type": "AzureBlobFS",
+		"typeProperties": {
+			"url": "https://dscemedessa0tpldnsazr.dfs.core.windows.net/"
+		}
+	}
+}

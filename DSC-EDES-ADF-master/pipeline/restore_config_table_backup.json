@@ -1,0 +1,107 @@
+{
+	"name": "restore_config_table_backup",
+	"properties": {
+		"activities": [
+			{
+				"name": "Restore Backup Config Tables",
+				"type": "Copy",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"sink": {
+						"type": "AzureSqlSink",
+						"preCopyScript": {
+							"value": "DELETE \nFROM [@{pipeline().parameters.fix_schema}].[@{pipeline().parameters.fix_table}]",
+							"type": "Expression"
+						},
+						"writeBehavior": "insert",
+						"sqlWriterUseTableLock": false
+					},
+					"enableStaging": false,
+					"translator": {
+						"type": "TabularTranslator",
+						"typeConversion": true,
+						"typeConversionSettings": {
+							"allowDataTruncation": true,
+							"treatBooleanAsNumber": false
+						}
+					}
+				},
+				"inputs": [
+					{
+						"referenceName": "BACKUP_DB",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": {
+								"value": "@pipeline().parameters.fix_schema",
+								"type": "Expression"
+							},
+							"table": {
+								"value": "@pipeline().parameters.fix_table",
+								"type": "Expression"
+							},
+							"db_name": {
+								"value": "@pipeline().parameters.source_db",
+								"type": "Expression"
+							}
+						}
+					}
+				],
+				"outputs": [
+					{
+						"referenceName": "BACKUP_DB",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": {
+								"value": "@pipeline().parameters.fix_schema",
+								"type": "Expression"
+							},
+							"table": {
+								"value": "@pipeline().parameters.fix_table",
+								"type": "Expression"
+							},
+							"db_name": {
+								"value": "@pipeline().parameters.sink_db",
+								"type": "Expression"
+							}
+						}
+					}
+				]
+			}
+		],
+		"parameters": {
+			"source_db": {
+				"type": "string",
+				"defaultValue": "dscemedesqldb0pldnsazr_2024-09-02T08-23Z"
+			},
+			"sink_db": {
+				"type": "string",
+				"defaultValue": "dscemedesqldb0pldnsazr"
+			},
+			"fix_schema": {
+				"type": "string",
+				"defaultValue": "test"
+			},
+			"fix_table": {
+				"type": "string",
+				"defaultValue": "TBL_BRONZE_TABLES"
+			}
+		},
+		"folder": {
+			"name": "development/config"
+		},
+		"annotations": []
+	}
+}

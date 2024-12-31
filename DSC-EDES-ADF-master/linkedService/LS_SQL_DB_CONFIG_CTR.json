@@ -1,0 +1,11 @@
+{
+	"name": "LS_SQL_DB_CONFIG_CTR",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"annotations": [],
+		"type": "AzureSqlDatabase",
+		"typeProperties": {
+			"connectionString": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=dscemedesqlsrv0pldnsazr.database.windows.net;Initial Catalog=dscemedesqldb0pldnsazr"
+		}
+	}
+}

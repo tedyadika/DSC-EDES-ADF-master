@@ -1,0 +1,46 @@
+{
+	"name": "trigger_synapse",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "gen_target",
+			"type": "LinkedServiceReference"
+		},
+		"parameters": {
+			"instance": {
+				"type": "string",
+				"defaultValue": "czche_4"
+			},
+			"storage_container": {
+				"type": "string",
+				"defaultValue": "development"
+			}
+		},
+		"folder": {
+			"name": "development/utility"
+		},
+		"annotations": [],
+		"type": "DelimitedText",
+		"typeProperties": {
+			"location": {
+				"type": "AzureBlobFSLocation",
+				"fileName": {
+					"value": "@{dataset().instance}.csv",
+					"type": "Expression"
+				},
+				"folderPath": {
+					"value": "stage/synapse_trigger/@{dataset().instance}",
+					"type": "Expression"
+				},
+				"fileSystem": {
+					"value": "@dataset().storage_container",
+					"type": "Expression"
+				}
+			},
+			"columnDelimiter": ",",
+			"escapeChar": "\\",
+			"quoteChar": "\""
+		},
+		"schema": []
+	},
+	"type": "Microsoft.DataFactory/factories/datasets"
+}

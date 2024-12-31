@@ -1,0 +1,21 @@
+{
+	"name": "LksCeedSyn",
+	"type": "Microsoft.DataFactory/factories/linkedservices",
+	"properties": {
+		"annotations": [],
+		"type": "AzureSqlDW",
+		"typeProperties": {
+			"connectionString": "Integrated Security=False;Encrypt=True;Connection Timeout=30;Data Source=dscglobalceedasw1ppldnsazr-ondemand.sql.azuresynapse.net;Initial Catalog=ldwh_config",
+			"servicePrincipalId": "0743345f-0536-48ac-b53e-2432e4d528de",
+			"servicePrincipalKey": {
+				"type": "AzureKeyVaultSecret",
+				"store": {
+					"referenceName": "AzureKeyVault",
+					"type": "LinkedServiceReference"
+				},
+				"secretName": "EMEA-SP-secret"
+			},
+			"tenant": "cd99fef8-1cd3-4a2a-9bdf-15531181d65e"
+		}
+	}
+}

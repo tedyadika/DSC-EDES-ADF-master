@@ -1,0 +1,63 @@
+{
+	"name": "gen_synapse_source",
+	"properties": {
+		"linkedServiceName": {
+			"referenceName": "gen_synapse_SP_ARIR",
+			"type": "LinkedServiceReference",
+			"parameters": {
+				"SP_SECRET": {
+					"value": "@dataset().SP_SECRET",
+					"type": "Expression"
+				},
+				"SERVER": {
+					"value": "@dataset().SERVER",
+					"type": "Expression"
+				},
+				"DB_NAME": {
+					"value": "@dataset().DB_NAME",
+					"type": "Expression"
+				},
+				"SP_ID": {
+					"value": "@dataset().SP_ID",
+					"type": "Expression"
+				}
+			}
+		},
+		"parameters": {
+			"TableName": {
+				"type": "string"
+			},
+			"SchemaName": {
+				"type": "string"
+			},
+			"SP_SECRET": {
+				"type": "string"
+			},
+			"SERVER": {
+				"type": "string"
+			},
+			"DB_NAME": {
+				"type": "string"
+			},
+			"SP_ID": {
+				"type": "string"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_synapse/autoresolve_IR"
+		},
+		"annotations": [],
+		"type": "AzureSqlDWTable",
+		"schema": [],
+		"typeProperties": {
+			"schema": {
+				"value": "@dataset().SchemaName",
+				"type": "Expression"
+			},
+			"table": {
+				"value": "@dataset().TableName",
+				"type": "Expression"
+			}
+		}
+	}
+}

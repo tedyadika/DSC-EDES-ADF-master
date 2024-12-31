@@ -1,0 +1,419 @@
+{
+	"name": "oracle_initial_upload_heavy_arch_table_VM_SHIR_00",
+	"properties": {
+		"description": "pipeline loads one table separating it per year based on date column - suitable for very heavy tables that fail otherwise",
+		"activities": [
+			{
+				"name": "Get table info",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT st.SOURCE_OBJECT_NAME TABLE_NAME, S.SOURCE_NAME INSTANCE_NAME,\nLOAD_ARCHIVE_FLAG DELETE_LOGIC_FLAG, LOAD_ORDER,\nKEY_COLUMNS_ARCH, S.SYSTEM_DOMAIN [SYSTEM], LOWER_BOUND, PARTITION_COL_NAME_ARCH, PARTITION_COL_NAME_PROD, UPPER_BOUND\n FROM @{pipeline().globalParameters.environment_db}.TBL_STAGE_TABLES ST inner join \n @{pipeline().globalParameters.environment_db}.TBL_STAGE_SOURCES S on\nST.STAGE_SOURCE_ID=S.STAGE_SOURCE_ID\nWHERE S.SOURCE_NAME='@{pipeline().parameters.instance_name}' \nand st.SOURCE_OBJECT_NAME = @{pipeline().parameters.table_name}",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "ADF_WMS_CONFIG_INSTANCES"
+						}
+					}
+				}
+			},
+			{
+				"name": "Get ARCH instance info",
+				"type": "Lookup",
+				"dependsOn": [],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"source": {
+						"type": "AzureSqlSource",
+						"sqlReaderQuery": {
+							"value": "SELECT S.SOURCE_NAME as INSTANCE_NAME, LOWER(S.SYSTEM_DOMAIN) [SYSTEM], MODE,HOST,PORT,SID,USER_NAME,PASSWORD,SOURCE_SCHEMA,TARGET_STORAGE_ACCOUNT, S.SYSTEM_NAME\nFROM @{pipeline().globalParameters.environment_db}.[TBL_STAGE_ORACLE_CONNECTION_INFO] CI inner join @{pipeline().globalParameters.environment_db}.TBL_STAGE_SOURCES S on\nCI.STAGE_SOURCE_ID=S.STAGE_SOURCE_ID\nWHERE S.SOURCE_NAME='@{pipeline().parameters.instance_name}' AND MODE='ARCH'",
+							"type": "Expression"
+						},
+						"queryTimeout": "02:00:00",
+						"partitionOption": "None"
+					},
+					"dataset": {
+						"referenceName": "CONFIG_TABLES",
+						"type": "DatasetReference",
+						"parameters": {
+							"schema": "dbo",
+							"table_name": "ADF_WMS_CONFIG_INSTANCES"
+						}
+					}
+				}
+			},
+			{
+				"name": "Set storage container",
+				"type": "SetVariable",
+				"dependsOn": [],
+				"policy": {
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"variableName": "storage_container",
+					"value": {
+						"value": "@pipeline().globalParameters.environment_container",
+						"type": "Expression"
+					}
+				}
+			},
+			{
+				"name": "If delete full folder",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Get ARCH instance info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Get table info",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					},
+					{
+						"activity": "Set storage container",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@pipeline().parameters.delete_full_table",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Delete",
+							"type": "Delete",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"dataset": {
+									"referenceName": "gen_wms_sink",
+									"type": "DatasetReference",
+									"parameters": {
+										"SOURCE_OBJECT_NAME": {
+											"value": "@activity('Get table info').output.firstRow.TABLE_NAME",
+											"type": "Expression"
+										},
+										"target_instance": {
+											"value": "@pipeline().parameters.instance_name",
+											"type": "Expression"
+										},
+										"target_storage_account": {
+											"value": "@activity('Get ARCH instance info').output.firstRow.TARGET_STORAGE_ACCOUNT",
+											"type": "Expression"
+										},
+										"mode": "ARCH",
+										"System": {
+											"value": "@concat(     activity('Get ARCH instance info').output.firstRow.SYSTEM_NAME,     '_',     activity('Get ARCH instance info').output.firstRow.SYSTEM)",
+											"type": "Expression"
+										},
+										"storage_container": {
+											"value": "@variables('storage_container')",
+											"type": "Expression"
+										}
+									}
+								},
+								"enableLogging": false,
+								"storeSettings": {
+									"type": "AzureBlobFSReadSettings",
+									"recursive": true,
+									"enablePartitionDiscovery": false
+								}
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "check years list",
+				"type": "Script",
+				"dependsOn": [
+					{
+						"activity": "If delete full folder",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"timeout": "0.12:00:00",
+					"retry": 0,
+					"retryIntervalInSeconds": 30,
+					"secureOutput": false,
+					"secureInput": false
+				},
+				"userProperties": [],
+				"linkedServiceName": {
+					"referenceName": "gen_oracle_source_VM_SHIR_00",
+					"type": "LinkedServiceReference",
+					"parameters": {
+						"HOST": {
+							"value": "@activity('Get ARCH instance info').output.firstRow.HOST",
+							"type": "Expression"
+						},
+						"PORT": {
+							"value": "@activity('Get ARCH instance info').output.firstRow.PORT",
+							"type": "Expression"
+						},
+						"SID": {
+							"value": "@activity('Get ARCH instance info').output.firstRow.SID",
+							"type": "Expression"
+						},
+						"USER_NAME": {
+							"value": "@activity('Get ARCH instance info').output.firstRow.USER_NAME",
+							"type": "Expression"
+						},
+						"PASSWORD": {
+							"value": "@activity('Get ARCH instance info').output.firstRow.PASSWORD",
+							"type": "Expression"
+						}
+					}
+				},
+				"typeProperties": {
+					"scripts": [
+						{
+							"type": "Query",
+							"text": {
+								"value": "SELECT DISTINCT to_char(@{pipeline().parameters.date_column}, 'yyyy') AS YEAR\n FROM @{activity('Get ARCH instance info').output.firstRow.SOURCE_SCHEMA}.@{activity('Get table info').output.firstRow.TABLE_NAME}\nWHERE to_char(@{pipeline().parameters.date_column}, 'yyyy') not in (@{pipeline().parameters.skip_years})",
+								"type": "Expression"
+							}
+						}
+					],
+					"scriptBlockExecutionTimeout": "02:00:00"
+				}
+			},
+			{
+				"name": "For each year of DATE_COLUMN in TABLE",
+				"type": "ForEach",
+				"dependsOn": [
+					{
+						"activity": "check years list",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"items": {
+						"value": "@activity('check years list').output.resultSets[0].rows",
+						"type": "Expression"
+					},
+					"isSequential": true,
+					"activities": [
+						{
+							"name": "Copy partitioned data from archive",
+							"type": "Copy",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "0.12:00:00",
+								"retry": 0,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [
+								{
+									"name": "Source",
+									"value": "@{activity('Get ARCH instance info').output.firstRow.SOURCE_SCHEMA}.@{activity('Get table info').output.firstRow.TABLE_NAME}"
+								},
+								{
+									"name": "Destination",
+									"value": "@{variables('storage_container')}/stage/@{concat(     activity('Get ARCH instance info').output.firstRow.SYSTEM_NAME,     '_',     activity('Get ARCH instance info').output.firstRow.SYSTEM)}/@{pipeline().parameters.instance_name}/@{'ARCH'}/@{activity('Get table info').output.firstRow.TABLE_NAME}/current/@{item().YEAR}/"
+								}
+							],
+							"typeProperties": {
+								"source": {
+									"type": "OracleSource",
+									"oracleReaderQuery": {
+										"value": "SELECT * FROM @{activity('Get ARCH instance info').output.firstRow.SOURCE_SCHEMA}.@{activity('Get table info').output.firstRow.TABLE_NAME} WHERE \n    to_char(@{pipeline().parameters.date_column}, 'yyyy') = @{item().YEAR}\n    AND ?AdfRangePartitionColumnName <= ?AdfRangePartitionUpbound AND ?AdfRangePartitionColumnName >= ?AdfRangePartitionLowbound",
+										"type": "Expression"
+									},
+									"partitionOption": "DynamicRange",
+									"partitionSettings": {
+										"partitionColumnName": {
+											"value": "@{activity('Get table info').output.firstRow.PARTITION_COL_NAME_ARCH}",
+											"type": "Expression"
+										},
+										"partitionUpperBound": {
+											"value": "@{activity('Get table info').output.firstRow.UPPER_BOUND}",
+											"type": "Expression"
+										},
+										"partitionLowerBound": {
+											"value": "@{activity('Get table info').output.firstRow.LOWER_BOUND}",
+											"type": "Expression"
+										}
+									},
+									"convertDecimalToInteger": false,
+									"queryTimeout": "02:00:00"
+								},
+								"sink": {
+									"type": "ParquetSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "ParquetWriteSettings"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "gen_oracle_source_VM_SHIR_00",
+									"type": "DatasetReference",
+									"parameters": {
+										"SchemaName": {
+											"value": "@activity('Get ARCH instance info').output.firstRow.SOURCE_SCHEMA",
+											"type": "Expression"
+										},
+										"TableName": {
+											"value": "@activity('Get table info').output.firstRow.TABLE_NAME",
+											"type": "Expression"
+										},
+										"HOST": {
+											"value": "@activity('Get ARCH instance info').output.firstRow.HOST",
+											"type": "Expression"
+										},
+										"PORT": {
+											"value": "@activity('Get ARCH instance info').output.firstRow.PORT",
+											"type": "Expression"
+										},
+										"SID": {
+											"value": "@activity('Get ARCH instance info').output.firstRow.SID",
+											"type": "Expression"
+										},
+										"USER_NAME": {
+											"value": "@activity('Get ARCH instance info').output.firstRow.USER_NAME",
+											"type": "Expression"
+										},
+										"PASSWORD": {
+											"value": "@activity('Get ARCH instance info').output.firstRow.PASSWORD",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "gen_wms_sink_year",
+									"type": "DatasetReference",
+									"parameters": {
+										"SOURCE_OBJECT_NAME": {
+											"value": "@activity('Get table info').output.firstRow.TABLE_NAME",
+											"type": "Expression"
+										},
+										"target_instance": {
+											"value": "@pipeline().parameters.instance_name",
+											"type": "Expression"
+										},
+										"target_storage_account": {
+											"value": "@activity('Get ARCH instance info').output.firstRow.TARGET_STORAGE_ACCOUNT",
+											"type": "Expression"
+										},
+										"mode": "ARCH",
+										"System": {
+											"value": "@concat(     activity('Get ARCH instance info').output.firstRow.SYSTEM_NAME,     '_',     activity('Get ARCH instance info').output.firstRow.SYSTEM)",
+											"type": "Expression"
+										},
+										"storage_container": {
+											"value": "@variables('storage_container')",
+											"type": "Expression"
+										},
+										"year": {
+											"value": "@item().YEAR",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "esval_1"
+			},
+			"table_name": {
+				"type": "string",
+				"defaultValue": "'DLYTRN '"
+			},
+			"date_column": {
+				"type": "string",
+				"defaultValue": "TRNDTE"
+			},
+			"delete_full_table": {
+				"type": "bool",
+				"defaultValue": true
+			},
+			"skip_years": {
+				"type": "string",
+				"defaultValue": "'1900','1901'"
+			}
+		},
+		"variables": {
+			"storage_container": {
+				"type": "String",
+				"defaultValue": "development"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_oracle/deploy_multi_SHIR/initial_upload"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-04-18T07:26:41Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}

@@ -1,0 +1,47 @@
+{
+	"name": "gen_sftp_source_VM_SHIR_00",
+	"properties": {
+		"parameters": {
+			"HOST": {
+				"type": "string",
+				"defaultValue": "ftp2-dhllink-qa.dhl.com"
+			},
+			"USER_NAME": {
+				"type": "string",
+				"defaultValue": "lbasedtalke_tst_sftp"
+			},
+			"PASSWORD_SECRET": {
+				"type": "string",
+				"defaultValue": "lbasedtalke-tst-sftp-password"
+			},
+			"PORT": {
+				"type": "int",
+				"defaultValue": 22
+			}
+		},
+		"annotations": [],
+		"type": "Sftp",
+		"typeProperties": {
+			"host": "@{linkedService().HOST}",
+			"port": "@linkedService().PORT",
+			"skipHostKeyValidation": true,
+			"authenticationType": "Basic",
+			"userName": "@{linkedService().USER_NAME}",
+			"password": {
+				"type": "AzureKeyVaultSecret",
+				"store": {
+					"referenceName": "AzureKeyVault",
+					"type": "LinkedServiceReference"
+				},
+				"secretName": {
+					"value": "@linkedService().PASSWORD_SECRET",
+					"type": "Expression"
+				}
+			}
+		},
+		"connectVia": {
+			"referenceName": "DSCGlobalIntegrationRuntime-OnPrem-WE",
+			"type": "IntegrationRuntimeReference"
+		}
+	}
+}

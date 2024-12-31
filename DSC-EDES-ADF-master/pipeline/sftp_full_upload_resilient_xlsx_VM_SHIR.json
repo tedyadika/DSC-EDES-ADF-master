@@ -1,0 +1,412 @@
+{
+	"name": "sftp_full_upload_resilient_xlsx_VM_SHIR",
+	"properties": {
+		"activities": [
+			{
+				"name": "Get PROD data",
+				"description": "This loop can be set to rerun prod load N times, or until it runs successfully. The condition is set up in the setting of the until loop. Counters are set up and added to within the loop",
+				"type": "Until",
+				"dependsOn": [
+					{
+						"activity": "start pipeline VM IR",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@or(\n    greater(\n        int(variables('count prod')),\n        1\n        ), \n    variables('prod succeeded'))",
+						"type": "Expression"
+					},
+					"activities": [
+						{
+							"name": "Set prod succeeded to true",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Copy PROD tables",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "prod succeeded",
+								"value": true
+							}
+						},
+						{
+							"name": "Add to temp prod",
+							"description": "temporary variable, because ADF does not allow counter=counter+1 type assignments",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Copy PROD tables",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "temp prod",
+								"value": {
+									"value": "@{add(int(variables('count prod')),1)}",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Add to prod counter",
+							"description": "using the temp variable to add 1 to the actual prod counter",
+							"type": "SetVariable",
+							"dependsOn": [
+								{
+									"activity": "Add to temp prod",
+									"dependencyConditions": [
+										"Succeeded"
+									]
+								}
+							],
+							"policy": {
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"variableName": "count prod",
+								"value": {
+									"value": "@variables('temp prod')",
+									"type": "Expression"
+								}
+							}
+						},
+						{
+							"name": "Copy PROD tables",
+							"type": "ExecutePipeline",
+							"dependsOn": [],
+							"policy": {
+								"secureInput": false
+							},
+							"userProperties": [],
+							"typeProperties": {
+								"pipeline": {
+									"referenceName": "execute_pipeline",
+									"type": "PipelineReference"
+								},
+								"waitOnCompletion": true,
+								"parameters": {
+									"pipelineName": {
+										"value": "sftp_full_upload_resilient_xlsx_VM00",
+										"type": "Expression"
+									},
+									"pipelineParametersJson": {
+										"value": "{ \"instance_name\":  \"@{pipeline().parameters.instance_name}\",\n  \"system\": \"@{pipeline().parameters.system}\",\n  \"mode\":\"PROD\",\n  \"frequency_name\": \"@{pipeline().parameters.frequency_name}\",\n   \"delete_from_sftp_after_completion\": \"@{pipeline().parameters.delete_from_sftp_after_completion}\",\n   \"full_clean_up_prestage\": \"@{pipeline().parameters.full_clean_up_prestage}\"}",
+										"type": "Expression"
+									},
+									"checkStatusWaitTime": 300,
+									"waitForCompletion": "True"
+								}
+							}
+						},
+						{
+							"name": "Wait before rerun PROD",
+							"description": "Waits for a while, in case the reason for failure is transient",
+							"type": "Wait",
+							"dependsOn": [
+								{
+									"activity": "Copy PROD tables",
+									"dependencyConditions": [
+										"Failed"
+									]
+								}
+							],
+							"userProperties": [],
+							"typeProperties": {
+								"waitTimeInSeconds": 900
+							}
+						}
+					],
+					"timeout": "7.00:00:00"
+				}
+			},
+			{
+				"name": "stop pipeline VM IR",
+				"type": "ExecutePipeline",
+				"dependsOn": [
+					{
+						"activity": "Get PROD data",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "stop_pipeline_VM_IR",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"ThisRunId": {
+							"value": "@pipeline().RunId",
+							"type": "Expression"
+						},
+						"IR_alias": {
+							"value": "@pipeline().parameters.IR_alias",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "start pipeline VM IR",
+				"type": "ExecutePipeline",
+				"dependsOn": [],
+				"policy": {
+					"secureInput": false
+				},
+				"userProperties": [],
+				"typeProperties": {
+					"pipeline": {
+						"referenceName": "start_pipeline_VM_IR",
+						"type": "PipelineReference"
+					},
+					"waitOnCompletion": true,
+					"parameters": {
+						"IR_alias": {
+							"value": "@pipeline().parameters.IR_alias",
+							"type": "Expression"
+						}
+					}
+				}
+			},
+			{
+				"name": "Continue only if PROD succeeded",
+				"description": "Throws an error if the Get Prod data loop ended because it reached the max number of repetitions, not because it succeeded",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "stop pipeline VM IR",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@variables('prod succeeded')",
+						"type": "Expression"
+					},
+					"ifFalseActivities": [
+						{
+							"name": "PROD Fail",
+							"type": "Fail",
+							"dependsOn": [],
+							"userProperties": [
+								{
+									"name": "instance_name",
+									"value": "@pipeline().parameters.instance_name"
+								}
+							],
+							"typeProperties": {
+								"message": {
+									"value": "@concat('PROD load failed', variables('count arch'), 'times')",
+									"type": "Expression"
+								},
+								"errorCode": "501"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "If Trigger Synapse",
+				"type": "IfCondition",
+				"dependsOn": [
+					{
+						"activity": "Continue only if PROD succeeded",
+						"dependencyConditions": [
+							"Succeeded"
+						]
+					}
+				],
+				"userProperties": [],
+				"typeProperties": {
+					"expression": {
+						"value": "@pipeline().parameters.trigger_synapse",
+						"type": "Expression"
+					},
+					"ifTrueActivities": [
+						{
+							"name": "Trigger synapse frequency",
+							"description": "Triggers the synapse pipeline for this instance and frequency",
+							"type": "Copy",
+							"dependsOn": [],
+							"policy": {
+								"timeout": "7.00:00:00",
+								"retry": 1,
+								"retryIntervalInSeconds": 30,
+								"secureOutput": false,
+								"secureInput": false
+							},
+							"userProperties": [
+								{
+									"name": "Source",
+									"value": "@{pipeline().globalParameters.environment_container}/stage/synapse_trigger/Trigger_file.csv"
+								},
+								{
+									"name": "Destination",
+									"value": "@{pipeline().globalParameters.environment_container}/stage/synapse_trigger_multifrequency/@{pipeline().parameters.instance_name}/@{pipeline().parameters.instance_name}|@{pipeline().parameters.frequency_name}.csv"
+								}
+							],
+							"typeProperties": {
+								"source": {
+									"type": "DelimitedTextSource",
+									"storeSettings": {
+										"type": "AzureBlobFSReadSettings",
+										"recursive": true,
+										"enablePartitionDiscovery": false
+									},
+									"formatSettings": {
+										"type": "DelimitedTextReadSettings"
+									}
+								},
+								"sink": {
+									"type": "DelimitedTextSink",
+									"storeSettings": {
+										"type": "AzureBlobFSWriteSettings"
+									},
+									"formatSettings": {
+										"type": "DelimitedTextWriteSettings",
+										"quoteAllText": true,
+										"fileExtension": ".txt"
+									}
+								},
+								"enableStaging": false,
+								"translator": {
+									"type": "TabularTranslator",
+									"typeConversion": true,
+									"typeConversionSettings": {
+										"allowDataTruncation": true,
+										"treatBooleanAsNumber": false
+									}
+								}
+							},
+							"inputs": [
+								{
+									"referenceName": "gen_trigger_csv",
+									"type": "DatasetReference",
+									"parameters": {
+										"storage_container": {
+											"value": "@pipeline().globalParameters.environment_container",
+											"type": "Expression"
+										}
+									}
+								}
+							],
+							"outputs": [
+								{
+									"referenceName": "trigger_synapse_multifrequency",
+									"type": "DatasetReference",
+									"parameters": {
+										"instance_name": {
+											"value": "@pipeline().parameters.instance_name",
+											"type": "Expression"
+										},
+										"storage_container": {
+											"value": "@pipeline().globalParameters.environment_container",
+											"type": "Expression"
+										},
+										"frequency": {
+											"value": "@pipeline().parameters.frequency_name",
+											"type": "Expression"
+										}
+									}
+								}
+							]
+						}
+					]
+				}
+			}
+		],
+		"parameters": {
+			"instance_name": {
+				"type": "string",
+				"defaultValue": "czchegy"
+			},
+			"system": {
+				"type": "string",
+				"defaultValue": "goodyear"
+			},
+			"IR_alias": {
+				"type": "string",
+				"defaultValue": "VM_SHIR_00"
+			},
+			"frequency_name": {
+				"type": "string",
+				"defaultValue": "daily_standard"
+			},
+			"delete_from_sftp_after_completion": {
+				"type": "bool",
+				"defaultValue": true
+			},
+			"trigger_synapse": {
+				"type": "bool",
+				"defaultValue": true
+			},
+			"full_clean_up_prestage": {
+				"type": "bool",
+				"defaultValue": false
+			}
+		},
+		"variables": {
+			"prod succeeded": {
+				"type": "Boolean",
+				"defaultValue": false
+			},
+			"count prod": {
+				"type": "String",
+				"defaultValue": "0"
+			},
+			"temp prod": {
+				"type": "String",
+				"defaultValue": "0"
+			},
+			"arch succeeded": {
+				"type": "Boolean",
+				"defaultValue": false
+			},
+			"count arch": {
+				"type": "String",
+				"defaultValue": "0"
+			},
+			"temp arch": {
+				"type": "String",
+				"defaultValue": "0"
+			}
+		},
+		"folder": {
+			"name": "development/ldwh_sftp/main_dynamic_SHIR"
+		},
+		"annotations": [],
+		"lastPublishTime": "2024-02-21T08:48:29Z"
+	},
+	"type": "Microsoft.DataFactory/factories/pipelines"
+}
